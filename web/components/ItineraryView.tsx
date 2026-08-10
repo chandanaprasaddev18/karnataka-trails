@@ -104,6 +104,8 @@ export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
         </div>
       </header>
 
+      <TripGallery days={days} />
+
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
         {summary.warnings.length > 0 && <Warnings warnings={summary.warnings} />}
 
@@ -157,6 +159,60 @@ export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
         </footer>
       </div>
     </article>
+  );
+}
+
+/**
+ * A strip of the stops on this trip, directly under the hero.
+ *
+ * Only a stop's OWN photograph is eligible here — no falling back to its
+ * locality. A strip captioned with place names is read as "this is what these
+ * places look like", so a stand-in image of the surrounding taluk would be a
+ * quiet lie. Inside a stop card the same fallback is fine, because there the
+ * caption says what it is.
+ */
+function TripGallery({ days }: { days: ItineraryDay[] }) {
+  const seen = new Set<string>();
+  const shots: { photo: Photo; name: string }[] = [];
+  for (const day of days) {
+    for (const item of day.items) {
+      const photo = firstPhoto(item.media);
+      if (photo && !seen.has(photo.title)) {
+        seen.add(photo.title);
+        shots.push({ photo, name: item.name });
+      }
+    }
+  }
+  if (shots.length < 3) return null;
+
+  return (
+    <section className="border-y border-navy-line bg-navy-deep">
+      <div className="mx-auto max-w-6xl px-5 py-5 sm:px-8">
+        <p className="eyebrow text-muted-dim">On this trip</p>
+        {/* Scrolls sideways on a phone rather than wrapping into a tall block
+            that pushes the itinerary itself off the first screen. */}
+        <ul className="mt-3 flex snap-x gap-3 overflow-x-auto pb-1">
+          {shots.slice(0, 8).map(({ photo, name }) => (
+            <li key={photo.title} className="w-40 shrink-0 snap-start sm:w-48">
+              <div className="relative h-24 sm:h-28">
+                <PhotoFrame
+                  photo={photo}
+                  alt={name}
+                  variant="cover"
+                  rounded="rounded-lg"
+                  sizes="192px"
+                  showCredit={false}
+                />
+              </div>
+              <p className="mt-1.5 truncate text-[11.5px] text-cream/85">{name}</p>
+              <p className="truncate text-[9.5px] text-muted-dim">
+                © {photo.artist} · {photo.license}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -216,6 +272,7 @@ function Stop({ item }: { item: ItineraryItem }) {
   // Its own photograph if it has one, else its taluk's. Activities and stays
   // never get their own — see the fetcher's rules — so the locality stands in.
   const photo = firstPhoto(item.media) ?? firstPhoto(item.region?.media);
+  const extra = item.media ? Math.max(0, item.media.length - 1) : 0;
 
   return (
     <div className="flex gap-3 sm:gap-4">
@@ -229,15 +286,25 @@ function Stop({ item }: { item: ItineraryItem }) {
       <div className="min-w-0 flex-1">
         <LegLine leg={item.leg_from_previous} />
         <div className="flex gap-4 rounded-xl border border-line bg-card p-3.5">
-          <PhotoFrame
-            photo={photo}
-            alt={item.name}
-            tone={item.kind === "activity" ? "activity" : "place"}
-            rounded="rounded-lg"
-            className="h-20 w-28 shrink-0"
-            sizes="112px"
-            showCredit={false}
-          />
+          <div className="relative shrink-0">
+            <PhotoFrame
+              photo={photo}
+              alt={item.name}
+              tone={item.kind === "activity" ? "activity" : "place"}
+              rounded="rounded-lg"
+              className="h-24 w-32 sm:h-28 sm:w-40"
+              sizes="160px"
+              showCredit={false}
+            />
+            {/* Most photographed places carry three images. Saying so is more
+                use than silently showing one — it tells a reader there is more
+                to look at on Commons. */}
+            {extra > 0 && (
+              <span className="absolute right-1.5 bottom-1.5 rounded-full bg-navy/80 px-1.5 py-0.5 font-mono text-[9.5px] text-cream/90">
+                +{extra}
+              </span>
+            )}
+          </div>
           <div className="min-w-0 space-y-1">
             <h3 className="font-display text-[15px] font-semibold">
               {item.name}
@@ -294,22 +361,47 @@ function StayRow({ day }: { day: ItineraryDay }) {
       </p>
     );
   }
+  // A stay is a private property and never has a Commons photograph of its own,
+  // so this is its locality — labelled as such, because a reader must not think
+  // it is a picture of the room.
+  const area = firstPhoto(day.stay.region?.media);
+
   return (
-    <div className="mt-4 rounded-xl bg-navy px-4 py-3.5">
-      <p className="eyebrow text-marigold">Tonight</p>
-      <p className="mt-1 text-[13.5px] text-cream">
-        <span className="font-medium">{day.stay.name}</span>
-        <span className="text-muted-dim"> · {titleCase(day.stay.stay_type)}</span>
-        {day.stay.per_night && (
-          <span className="text-muted-dim"> · {formatMoney(day.stay.per_night)}/night</span>
-        )}
-        {day.stay.meals_included && <span className="text-teal"> · meals included</span>}
-      </p>
-      {day.stay.amenities.length > 0 && (
-        <p className="mt-0.5 text-[11.5px] text-muted-dim">
-          {day.stay.amenities.map((a) => titleCase(a)).join(" · ")}
-        </p>
+    <div className="mt-4 flex gap-3.5 overflow-hidden rounded-xl bg-navy p-3.5">
+      {area && (
+        <div className="relative hidden h-20 w-28 shrink-0 sm:block">
+          <PhotoFrame
+            photo={area}
+            alt={`Around ${day.stay.region?.name ?? day.stay.name}`}
+            tone="stay"
+            variant="cover"
+            rounded="rounded-lg"
+            sizes="112px"
+            showCredit={false}
+          />
+        </div>
       )}
+      <div className="min-w-0">
+        <p className="eyebrow text-marigold">Tonight</p>
+        <p className="mt-1 text-[13.5px] text-cream">
+          <span className="font-medium">{day.stay.name}</span>
+          <span className="text-muted-dim"> · {titleCase(day.stay.stay_type)}</span>
+          {day.stay.per_night && (
+            <span className="text-muted-dim"> · {formatMoney(day.stay.per_night)}/night</span>
+          )}
+          {day.stay.meals_included && <span className="text-teal"> · meals included</span>}
+        </p>
+        {day.stay.amenities.length > 0 && (
+          <p className="mt-0.5 text-[11.5px] text-muted-dim">
+            {day.stay.amenities.map((a) => titleCase(a)).join(" · ")}
+          </p>
+        )}
+        {area && (
+          <p className="mt-1 truncate text-[10px] text-muted-dim/80">
+            Photo shows {day.stay.region?.name ?? "the area"} · © {area.artist} · {area.license}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

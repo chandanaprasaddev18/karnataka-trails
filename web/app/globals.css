@@ -19,32 +19,38 @@
  *   teal        quiet affirmative detail — verified, included, available.
  *               Western Ghats water.
  *
- * Nothing else gets a colour. Everything structural is navy, cream, or a step
- * between them.
+ * The navy is a five-step ramp rather than three, because the redesign layers
+ * navy on navy (stat tiles on a photo hero, stay bars inside cream cards) and
+ * three steps forced either invisible or heavy-handed separation. Both neutrals
+ * are warm — the navy carries a little red, the cream a little yellow — so
+ * photographs of laterite soil and coffee estates sit inside the palette instead
+ * of fighting it.
  */
 @theme {
-  /* base */
-  --color-navy: #14203b;
-  --color-navy-mid: #1b2c4f;
-  --color-navy-soft: #27395f;
-  --color-navy-line: #32456e;
-  --color-cream: #fbf7f0;
+  /* base — warm navy ramp */
+  --color-navy: #111c33;
+  --color-navy-deep: #0c1526;
+  --color-navy-mid: #1a2745;
+  --color-navy-soft: #253356;
+  --color-navy-line: #2f4067;
+  --color-cream: #fcf8f1;
+  --color-cream-dim: #f4ede1;
   --color-card: #ffffff;
   --color-ink: #14203b;
-  --color-muted: #6d7590;
-  --color-muted-dim: #97a0bd;
-  --color-line: #e8e1d5;
+  --color-muted: #6b7490;
+  --color-muted-dim: #98a2c0;
+  --color-line: #e9e2d6;
 
   /* accents — three, each with one job */
-  --color-marigold: #e8992f;
-  --color-marigold-soft: #fdf1dd;
+  --color-marigold: #eb9a2c;
+  --color-marigold-soft: #fdf1dc;
   --color-terracotta: #bf5230;
   --color-terracotta-soft: #fbeee8;
-  --color-teal: #16797f;
-  --color-teal-soft: #e6f1f1;
+  --color-teal: #14757c;
+  --color-teal-soft: #e5f0f0;
 
   --font-display: var(--font-fraunces);
-  --font-sans: var(--font-jakarta);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-plex-mono);
 }
 
@@ -56,6 +62,12 @@ html {
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Display type wants tighter tracking than its default at large sizes. */
+.font-display {
+  letter-spacing: -0.015em;
 }
 
 /* An eyebrow: small, spaced, monospaced. Used above headings throughout. */
@@ -64,6 +76,33 @@ body {
   font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/*
+ * PHOTO GRADE
+ *
+ * The photographs come from dozens of different photographers across twenty
+ * years — phone snaps next to DSLR landscapes, some flat and grey, some
+ * oversaturated. Dropped in raw they read as a scrapbook rather than one product.
+ *
+ * This is a deliberately light grade: lift contrast slightly, pull saturation
+ * back a touch so nothing screams, and warm the whole set with a low-opacity
+ * marigold wash over a navy floor. Enough to make mixed sources feel related,
+ * not enough to misrepresent what a place looks like — which rules out anything
+ * heavier like a true duotone.
+ */
+.photo-grade img {
+  filter: saturate(0.92) contrast(1.06) brightness(0.98);
+}
+
+.photo-grade::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(235, 154, 44, 0.07), rgba(17, 28, 51, 0.16));
+  mix-blend-mode: multiply;
 }
 
 /* Focus ring that survives on both the navy and cream halves of the app. */

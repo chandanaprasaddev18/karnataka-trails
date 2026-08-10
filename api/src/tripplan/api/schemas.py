@@ -80,6 +80,8 @@ class DistrictOut(BaseModel):
     media: list[dict[str, Any]] = Field(default_factory=list)
     # A few interests this district actually delivers, for the card subtitle.
     top_interests: list[str] = Field(default_factory=list)
+    # Photographs of places inside the district, for the home page mosaic.
+    gallery: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HealthOut(BaseModel):

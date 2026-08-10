@@ -266,17 +266,20 @@ def _contradicts(title: str, own_text: str) -> str | None:
 
 
 def _identifies(candidate_text: str, tokens: set[str]) -> bool:
-    """Does this file's own text mention the place?
+    """Does this file's own title name the place?
 
-    Prefix matching on a 5+ character stem handles the transliteration variance
-    these names attract — Mullayanagiri / Mullayyanagiri / Mullaiyanagiri.
+    Compared with spaces and punctuation stripped, because Commons is inconsistent
+    about compound Kannada names: "Baba Budan Giri" and "Bababudangiri" are the
+    same hill. Prefix matching on a 6-character stem then absorbs the remaining
+    transliteration variance — Mullayanagiri / Mullayyanagiri / Mullaiyanagiri.
     """
     text = candidate_text.lower()
+    squashed = re.sub(r"[^a-z]", "", text)
     for token in tokens:
-        if token in text:
+        if token in text or token in squashed:
             return True
         stem = token[:6] if len(token) >= 7 else token
-        if len(stem) >= 5 and stem in text:
+        if len(stem) >= 5 and (stem in text or stem in squashed):
             return True
     return False
 
@@ -384,26 +387,42 @@ class CommonsClient:
         *,
         region_name: str = "",
         already_used: set[str] | None = None,
-    ) -> tuple[Photo | None, str | None]:
-        """Find one attributable photo that provably depicts `name`.
+        want: int = 1,
+    ) -> tuple[list[Photo], str | None]:
+        """Find up to `want` attributable photos that provably depict `name`.
 
-        Returns ``(photo, rejection_reason)`` — the reason is for the report when
+        Returns ``(photos, rejection_reason)`` — the reason is for the report when
         nothing qualified, so a human can see WHY a place has no image.
         """
         tokens = name_tokens(name)
         if not tokens:
-            return None, "name has no distinctive words"
+            # Names made entirely of generic words ("Z Point", "Coffee Museum")
+            # cannot identify themselves, so require the locality instead. Without
+            # this they are unmatchable by construction.
+            tokens = name_tokens(region_name)
+            if not tokens:
+                return [], "name has no distinctive words"
 
-        query = f"{name} {extra_context}".strip()
+        # Both query forms, unioned. The region-qualified query finds the right
+        # file when a name is ambiguous, but it also returns plausible-looking
+        # rubbish (district gazetteers) for names Commons indexes plainly. The
+        # previous version only fell back to the bare name when the qualified
+        # search returned NOTHING, so a page of irrelevant hits blocked the good
+        # results entirely — that is why Baba Budangiri, which has dozens of
+        # Commons photographs, ended up with none.
+        queries = [f"{name} {extra_context}".strip(), name]
+        titles: list[str] = []
         try:
-            titles = await self.search(client, query)
-            if not titles:
-                titles = await self.search(client, name)
-            await asyncio.sleep(self._pause)
-            info = await self.image_info(client, titles[:8])
+            for query in queries:
+                for title in await self.search(client, query):
+                    if title not in titles:
+                        titles.append(title)
+                await asyncio.sleep(self._pause)
+            info = await self.image_info(client, titles[:16])
         except httpx.HTTPError as exc:
-            return None, f"commons unreachable ({type(exc).__name__})"
+            return [], f"commons unreachable ({type(exc).__name__})"
 
+        found: list[Photo] = []
         reason = "no candidate identified the place"
         for title in titles:
             page = info.get(title)
@@ -443,7 +462,7 @@ class CommonsClient:
                 reason = f"licence not displayable ({license_name})"
                 continue
 
-            return (
+            found.append(
                 Photo(
                     url=_clean_url(str(meta["url"])),
                     thumb_url=_clean_url(str(meta.get("thumburl") or meta["url"])),
@@ -454,10 +473,11 @@ class CommonsClient:
                     source_page=str(meta.get("descriptionurl", "")),
                     width=meta.get("width"),
                     height=meta.get("height"),
-                ),
-                None,
+                )
             )
-        return None, reason
+            if len(found) >= want:
+                break
+        return found, (None if found else reason)
 
 
 async def fetch_photos(
@@ -491,28 +511,30 @@ async def fetch_photos(
             overwrite,
         )
         for row in regions:
-            photo, why = await commons.best_photo(
+            photos, why = await commons.best_photo(
                 client,
                 str(row["name"]),
                 "Karnataka landscape",
                 region_name="Chikkamagaluru Karnataka",
                 already_used=used_titles,
+                want=2,
             )
             label = f"{row['name']} ({row['kind']})"
-            if photo is None:
+            if not photos:
                 report.unmatched.append(label)
                 if why:
                     report.rejected[label] = why
                 continue
-            photo.local_path = await download(
-                client, photo, into=photos_dir, public_prefix=public_prefix
-            )
+            for photo in photos:
+                photo.local_path = await download(
+                    client, photo, into=photos_dir, public_prefix=public_prefix
+                )
+                used_titles.add(photo.title)
             await conn.execute(
                 "UPDATE regions SET media = $2::jsonb WHERE id = $1",
                 row["id"],
-                [photo.model_dump()],
+                [p.model_dump() for p in photos],
             )
-            used_titles.add(photo.title)
             report.matched.append(label)
 
         # --- POIs -----------------------------------------------------------
@@ -549,28 +571,56 @@ async def fetch_photos(
                 )
                 continue
 
-            photo, why = await commons.best_photo(
+            photos, why = await commons.best_photo(
                 client,
                 str(row["name"]),
                 f"{row['region_name']} Karnataka",
                 region_name=f"{row['region_name']} Chikkamagaluru Karnataka",
                 already_used=used_titles,
+                want=3,
             )
-            if photo is None:
+            if not photos:
                 report.unmatched.append(str(row["name"]))
                 if why:
                     report.rejected[str(row["name"])] = why
                 continue
-            photo.local_path = await download(
-                client, photo, into=photos_dir, public_prefix=public_prefix
-            )
+            for photo in photos:
+                photo.local_path = await download(
+                    client, photo, into=photos_dir, public_prefix=public_prefix
+                )
+                used_titles.add(photo.title)
             await conn.execute(
                 "UPDATE pois SET media = $2::jsonb WHERE id = $1",
                 row["id"],
-                [photo.model_dump()],
+                [p.model_dump() for p in photos],
             )
-            used_titles.add(photo.title)
             report.matched.append(str(row["name"]))
+
+        # A taluk with no photograph of its own borrows one from a published place
+        # inside it. Honest by construction — the photo IS in that taluk — and the
+        # UI labels a borrowed image as showing the surrounding area.
+        borrowed = await conn.fetch(
+            """
+            UPDATE regions r
+            SET media = sub.media
+            FROM (
+                SELECT rr.id AS region_id, p.media
+                FROM regions rr
+                JOIN pois p ON p.region_id = rr.id
+                WHERE rr.kind = 'taluk'
+                  AND rr.media = '[]'::jsonb
+                  AND p.status = 'published'
+                  AND p.kind = 'place'
+                  AND p.media <> '[]'::jsonb
+                ORDER BY rr.id, p.data_confidence DESC
+            ) AS sub
+            WHERE r.id = sub.region_id AND r.media = '[]'::jsonb
+            RETURNING r.name
+            """
+        )
+        for row in borrowed:
+            report.matched.append(f"{row['name']} (taluk, borrowed from a place inside it)")
+            report.unmatched = [u for u in report.unmatched if not u.startswith(str(row["name"]))]
 
     log.info(
         "photos.fetched",

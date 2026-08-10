@@ -1,27 +1,41 @@
 import type { Metadata } from "next";
-import { Fraunces, IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Fraunces, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
 /*
  * Fonts are self-hosted by next/font at build time rather than linked from
- * Google's CDN as the mockup does: no third-party request at runtime, no
- * layout shift, and the app keeps working offline.
+ * Google's CDN as the mockup does: no third-party request at runtime, no layout
+ * shift, and the app keeps working offline.
  *
- * The mockup specifies General Sans, which is not on Google Fonts. Plus Jakarta
- * Sans is the closest match in the same geometric-humanist register.
+ * Fraunces is a variable font with more than a weight axis, and the defaults
+ * waste it. Loading SOFT and WONK gives the display face actual character —
+ * softened terminals and the canted leg on the R and the single-storey g — which
+ * is what stops an editorial travel page reading like a dashboard. `opsz` lets
+ * the same family carry both a 48px hero and a 15px card title without the hero
+ * looking spindly.
+ *
+ * The mockup specifies General Sans, which is not on Google Fonts. Instrument
+ * Sans is the closer match: slightly condensed, taller x-height, and it holds up
+ * better than Plus Jakarta at the 11-13px sizes this UI leans on heavily.
+ */
+/*
+ * `weight` and `axes` are mutually exclusive in next/font: naming explicit
+ * weights pins the font instance, and an axis list only means something on a
+ * variable one. Omitting weight loads the variable face across all axes, which
+ * is what we want anyway — the UI asks for 500/600/700 in different places.
  */
 const fraunces = Fraunces({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  axes: ["SOFT", "WONK", "opsz"],
   variable: "--font-fraunces",
   display: "swap",
 });
 
-const jakarta = Plus_Jakarta_Sans({
+const body = Instrument_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-  variable: "--font-jakarta",
+  variable: "--font-body",
   display: "swap",
 });
 
@@ -40,7 +54,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${jakarta.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${fraunces.variable} ${body.variable} ${plexMono.variable}`}>
       <body className="min-h-screen bg-cream text-ink">
         <Navbar />
         {children}

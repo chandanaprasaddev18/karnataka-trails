@@ -51,6 +51,7 @@ export function PhotoFrame({
   priority = false,
   rounded = "rounded-xl",
   showCredit = true,
+  grade = true,
 }: {
   photo: Photo | null | undefined;
   alt: string;
@@ -61,6 +62,8 @@ export function PhotoFrame({
   priority?: boolean;
   rounded?: string;
   showCredit?: boolean;
+  /** Apply the unified photo grade. Off only where a raw image is wanted. */
+  grade?: boolean;
 }) {
   const position = variant === "cover" ? "absolute inset-0" : "relative";
 
@@ -74,7 +77,9 @@ export function PhotoFrame({
   }
 
   return (
-    <div className={`group overflow-hidden ${position} ${rounded} ${className}`}>
+    <div
+      className={`group overflow-hidden ${grade ? "photo-grade" : ""} ${position} ${rounded} ${className}`}
+    >
       <Image
         src={photoSrc(photo)}
         alt={alt}

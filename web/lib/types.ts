@@ -40,6 +40,8 @@ export interface Photo {
    * page should not depend on a free external service being up.
    */
   local_path: string | null;
+  /** Set only on gallery entries: the place the photograph shows. */
+  caption?: string;
 }
 
 export interface Money {
@@ -96,6 +98,8 @@ export interface StayCard {
   poi_id: string;
   name: string;
   stay_type: string;
+  /** Stays have no photograph of their own; the card falls back to this. */
+  region: RegionRef | null;
   per_night: Money | null;
   point: GeoPoint;
   contact: Record<string, unknown>;
@@ -191,6 +195,8 @@ export interface District {
   published_places: number;
   media: Photo[];
   top_interests: string[];
+  /** One photo per place in the district, for the home mosaic. */
+  gallery: Photo[];
 }
 
 export interface Interest {

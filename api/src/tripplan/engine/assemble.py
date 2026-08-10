@@ -68,6 +68,7 @@ def _stay_card(stay: Candidate) -> StayCard:
         poi_id=stay.poi_id,
         name=stay.name,
         stay_type=str(detail.get("stay_type", "other")),
+        region=stay.region,
         per_night=per_night,
         point=stay.point,
         contact=dict(detail.get("contact") or {}),

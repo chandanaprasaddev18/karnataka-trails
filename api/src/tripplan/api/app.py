@@ -182,6 +182,23 @@ async def list_districts(conn: Conn) -> list[DistrictOut]:
             """,
             row["slug"],
         )
+        # One photo per place, highest-confidence first, for the mosaic. Capped so
+        # the home page does not pull the whole corpus.
+        gallery_rows = await conn.fetch(
+            """
+            SELECT p.media -> 0 AS photo, p.name
+            FROM pois p
+            JOIN regions r ON r.id = p.region_id
+            WHERE p.status = 'published'
+              AND p.kind = 'place'
+              AND p.media <> '[]'::jsonb
+              AND r.path LIKE (SELECT path FROM regions WHERE slug = $1) || '%'
+            ORDER BY p.data_confidence DESC, p.name
+            LIMIT 8
+            """,
+            row["slug"],
+        )
+
         out.append(
             DistrictOut(
                 slug=str(row["slug"]),
@@ -189,6 +206,11 @@ async def list_districts(conn: Conn) -> list[DistrictOut]:
                 published_places=int(row["places"]),
                 media=list(row["media"] or []),
                 top_interests=[str(i["label"]) for i in interests],
+                gallery=[
+                    {**dict(g["photo"]), "caption": str(g["name"])}
+                    for g in gallery_rows
+                    if g["photo"]
+                ],
             )
         )
     return out

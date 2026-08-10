@@ -293,6 +293,8 @@ class StayCard(BaseModel):
     poi_id: UUID
     name: str
     stay_type: str
+    # Stays have no Commons photograph, so the card falls back to its locality.
+    region: RegionRef | None = None
     per_night: Money | None = None
     point: GeoPoint
     contact: dict[str, Any] = Field(default_factory=dict)

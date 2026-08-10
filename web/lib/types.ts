@@ -17,6 +17,31 @@ export type PoiKind = "place" | "stay" | "activity";
 export type ComposerName = "llm" | "deterministic";
 export type TravelSource = "static_haversine" | "maps_api";
 
+/**
+ * An attributable photograph from Wikimedia Commons.
+ *
+ * `artist`, `license` and `source_page` are required, not optional: the backend
+ * refuses to store an image whose licence it could not read, because crediting
+ * the author is a condition of the licence.
+ */
+export interface Photo {
+  url: string;
+  thumb_url: string;
+  title: string;
+  artist: string;
+  license: string;
+  license_url: string | null;
+  source_page: string;
+  width: number | null;
+  height: number | null;
+  /**
+   * Path to our own downloaded copy, e.g. "/photos/ab12.jpg". Preferred over
+   * `url` so no page view hits Wikimedia — their CDN rate-limits (429) and a
+   * page should not depend on a free external service being up.
+   */
+  local_path: string | null;
+}
+
 export interface Money {
   min_paise: number;
   max_paise: number;
@@ -42,18 +67,26 @@ export interface GuideRef {
   is_verified: boolean;
 }
 
+export interface RegionRef {
+  slug: string;
+  name: string;
+  media: Photo[];
+}
+
 export interface ItineraryItem {
   slot: number;
   kind: PoiKind;
   poi_id: string;
   name: string;
   summary: string;
+  /** The taluk. Its imagery is the fallback for stops with no photo of their own. */
+  region: RegionRef | null;
   why_chosen: string | null;
   start_time_estimate: string | null;
   duration_minutes: number | null;
   cost: Money | null;
   point: GeoPoint;
-  media: Record<string, unknown>[];
+  media: Photo[];
   detail: Record<string, unknown>;
   leg_from_previous: TravelLeg | null;
   guides: GuideRef[];
@@ -66,7 +99,7 @@ export interface StayCard {
   per_night: Money | null;
   point: GeoPoint;
   contact: Record<string, unknown>;
-  media: Record<string, unknown>[];
+  media: Photo[];
   meals_included: boolean;
   amenities: string[];
 }
@@ -115,7 +148,7 @@ export interface Itinerary {
     party_size: number;
     budget_band: number;
     origin: { label: string; lat: number; lon: number };
-    district: { slug: string; name: string };
+    district: { slug: string; name: string; media: Photo[] };
   };
   summary: {
     title: string;
@@ -149,6 +182,15 @@ export interface Infeasible {
   suggested_months: number[];
   suggested_interests: { slug: string; label: string }[];
   min_budget_band: number | null;
+}
+
+/** A district card on the home page. */
+export interface District {
+  slug: string;
+  name: string;
+  published_places: number;
+  media: Photo[];
+  top_interests: string[];
 }
 
 export interface Interest {

@@ -69,6 +69,19 @@ class PlanStatusOut(BaseModel):
     itinerary: dict[str, Any] | None = None
 
 
+class DistrictOut(BaseModel):
+    """A district card for the home page."""
+
+    slug: str
+    name: str
+    published_places: int
+    # media[0] is the hero. Typed loosely because it is a display document that
+    # must be rendered verbatim, attribution included.
+    media: list[dict[str, Any]] = Field(default_factory=list)
+    # A few interests this district actually delivers, for the card subtitle.
+    top_interests: list[str] = Field(default_factory=list)
+
+
 class HealthOut(BaseModel):
     status: Literal["ok", "degraded"]
     database: bool

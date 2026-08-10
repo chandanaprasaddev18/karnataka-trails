@@ -138,6 +138,7 @@ def assemble(
                     poi_id=candidate.poi_id,
                     name=candidate.name,
                     summary=candidate.summary,
+                    region=candidate.region,
                     why_chosen=routed.why_chosen,
                     start_time_estimate=_fmt_hhmm(cursor),
                     duration_minutes=candidate.duration_minutes,

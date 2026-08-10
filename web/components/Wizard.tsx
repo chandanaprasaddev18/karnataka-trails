@@ -14,11 +14,28 @@ import { budgetLabel } from "@/lib/format";
 import type { Infeasible, Interest } from "@/lib/types";
 
 /**
- * The three-step wizard: interests, then trip shape, then submit.
+ * The planning form: interests on the left, trip shape in a dark sidebar.
  *
- * Interests are fetched from the API rather than hardcoded, so adding one is a
- * seed-file change on the backend and the two can never disagree.
+ * Interests come from the API rather than being hardcoded, so adding one is a
+ * backend seed change and the two can never disagree. The stamp-card treatment is
+ * from the mockup — a passport-stamp metaphor, which suits a trip planner and
+ * gives the selected state somewhere obvious to live.
  */
+
+/** One glyph per interest slug. Falls back to a neutral mark for a new tag. */
+const GLYPH: Record<string, string> = {
+  trekking: "△",
+  spiritual: "◐",
+  adventurous: "⛰",
+  nature: "≈",
+  wildlife: "✦",
+  "coffee-country": "☕",
+  heritage: "◈",
+  relaxation: "◎",
+  photography: "◉",
+  offbeat: "✧",
+};
+
 export function Wizard() {
   const router = useRouter();
   const [interests, setInterests] = useState<Interest[] | null>(null);
@@ -33,8 +50,8 @@ export function Wizard() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Held apart from `submitError` because an impossible brief is not a failure
-  // to apologise for — it comes with alternatives the user can take in one click.
+  // Held apart from `submitError` because an impossible brief is not a failure to
+  // apologise for — it arrives with alternatives the user can take in one click.
   const [infeasible, setInfeasible] = useState<Infeasible | null>(null);
 
   useEffect(() => {
@@ -80,149 +97,216 @@ export function Wizard() {
     }
   }
 
-  if (loadError) {
-    return (
-      <div className="rounded-lg border border-clay/30 bg-clay-soft p-4 text-sm text-clay">
-        {loadError}
-      </div>
-    );
-  }
-
-  if (!interests) {
-    return <div className="text-sm text-muted">Loading interests…</div>;
-  }
-
   return (
-    <div className="space-y-8">
-      <fieldset className="space-y-3">
-        <legend className="text-sm font-medium">
-          What are you after? <span className="text-muted">(pick one or more)</span>
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {interests.map((interest) => {
-            const active = selected.includes(interest.slug);
-            return (
-              <button
-                key={interest.slug}
-                type="button"
-                onClick={() => toggle(interest.slug)}
-                aria-pressed={active}
-                title={interest.description ?? undefined}
-                className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
-                  active
-                    ? "border-moss bg-moss text-white"
-                    : "border-line bg-card text-ink hover:border-moss/50"
-                }`}
-              >
-                {interest.label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+    <div className="mx-auto flex max-w-6xl flex-col lg:flex-row">
+      {/* --- interests ---------------------------------------------------- */}
+      <section className="flex-1 px-5 py-10 sm:px-8">
+        <p className="eyebrow text-terracotta">Step 1 of 2</p>
+        <h1 className="mt-3 font-display text-3xl font-semibold">What draws you in?</h1>
+        <p className="mt-2 max-w-lg text-[13.5px] text-muted">
+          Pick as many as you like — we shape every stop around them. Season matters here:
+          most treks and waterfalls close or turn unsafe outside October to February.
+        </p>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Days">
-          <Stepper value={days} min={1} max={14} onChange={setDays} suffix={days === 1 ? "day" : "days"} />
-        </Field>
-        <Field label="People">
-          <Stepper
-            value={party}
-            min={1}
-            max={30}
-            onChange={setParty}
-            suffix={party === 1 ? "person" : "people"}
-          />
-        </Field>
-        <Field label={`Budget — ${budgetLabel(budget)}`}>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            value={budget}
-            onChange={(event) => setBudget(Number(event.target.value))}
-            className="w-full accent-moss"
-            aria-label="Budget band"
-          />
-        </Field>
-        <Field label="Starting from">
-          <select
-            value={origin}
-            onChange={(event) => setOrigin(event.target.value)}
-            className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm"
-          >
-            {ORIGINS.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Travelling in">
-          <select
-            value={month}
-            onChange={(event) => setMonth(Number(event.target.value))}
-            className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm"
-          >
-            {MONTHS.map((name, index) => (
-              <option key={name} value={index + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1.5 text-xs text-muted">
-            Season matters here — most treks and falls are closed or unsafe outside October to
-            February.
+        {loadError ? (
+          <p className="mt-8 rounded-xl border border-terracotta/30 bg-terracotta-soft p-4 text-sm text-terracotta">
+            {loadError}
           </p>
-        </Field>
-      </div>
+        ) : !interests ? (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="h-[104px] animate-pulse rounded-xl bg-line/60" />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {interests.map((interest) => {
+              const on = selected.includes(interest.slug);
+              return (
+                <button
+                  key={interest.slug}
+                  type="button"
+                  onClick={() => toggle(interest.slug)}
+                  aria-pressed={on}
+                  title={interest.description ?? undefined}
+                  className={`flex flex-col items-center gap-2.5 rounded-xl px-3 py-5 transition ${
+                    on
+                      ? "border-[1.5px] border-marigold bg-marigold-soft"
+                      : "border-[1.5px] border-dashed border-line bg-card hover:border-marigold/50"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`flex h-11 w-11 items-center justify-center rounded-full font-display text-base transition ${
+                      on ? "-rotate-6 bg-marigold text-navy" : "bg-cream text-muted"
+                    }`}
+                  >
+                    {GLYPH[interest.slug] ?? "✦"}
+                  </span>
+                  <span
+                    className={`text-center text-[12.5px] ${on ? "font-medium text-ink" : "text-muted"}`}
+                  >
+                    {interest.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      {infeasible && (
-        <NoMatches
-          detail={infeasible}
-          onPickMonth={(m) => {
-            setMonth(m);
-            setInfeasible(null);
-          }}
-          onPickInterest={(slug) => {
-            setSelected([slug]);
-            setInfeasible(null);
-          }}
-          onRaiseBudget={(band) => {
-            setBudget(band);
-            setInfeasible(null);
-          }}
-        />
-      )}
+        {infeasible && (
+          <NoMatches
+            detail={infeasible}
+            onPickMonth={(m) => {
+              setMonth(m);
+              setInfeasible(null);
+            }}
+            onPickInterest={(slug) => {
+              setSelected([slug]);
+              setInfeasible(null);
+            }}
+            onRaiseBudget={(band) => {
+              setBudget(band);
+              setInfeasible(null);
+            }}
+          />
+        )}
 
-      {submitError && (
-        <div className="rounded-lg border border-clay/30 bg-clay-soft p-3 text-sm text-clay">
-          {submitError}
+        {submitError && (
+          <p className="mt-6 rounded-xl border border-terracotta/30 bg-terracotta-soft p-4 text-sm text-terracotta">
+            {submitError}
+          </p>
+        )}
+      </section>
+
+      {/* --- trip shape --------------------------------------------------- */}
+      <aside className="w-full shrink-0 bg-navy px-6 py-10 sm:px-8 lg:w-[340px]">
+        <h2 className="font-display text-base font-semibold text-cream">Your trip, so far</h2>
+
+        <div className="mt-5">
+          <Row label="Days">
+            <Stepper value={days} min={1} max={14} onChange={setDays} unit="days" />
+          </Row>
+          <Row label="Travellers">
+            <Stepper value={party} min={1} max={30} onChange={setParty} unit="people" />
+          </Row>
+
+          <div className="border-t border-navy-line py-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] text-cream/80">Budget</span>
+              <span className="font-mono text-[12px] text-marigold">{budgetLabel(budget)}</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={5}
+              value={budget}
+              onChange={(event) => setBudget(Number(event.target.value))}
+              aria-label="Budget band"
+              className="mt-3 w-full accent-marigold"
+            />
+          </div>
+
+          <Row label="Starting from">
+            <select
+              value={origin}
+              onChange={(event) => setOrigin(event.target.value)}
+              className="rounded-md border border-navy-line bg-navy-mid px-2.5 py-1.5 text-[13px] text-cream"
+            >
+              {ORIGINS.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Travelling in">
+            <select
+              value={month}
+              onChange={(event) => setMonth(Number(event.target.value))}
+              className="rounded-md border border-navy-line bg-navy-mid px-2.5 py-1.5 text-[13px] text-cream"
+            >
+              {MONTHS.map((name, index) => (
+                <option key={name} value={index + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Row>
         </div>
-      )}
 
-      <div className="flex items-center gap-4">
         <button
           type="button"
           onClick={submit}
           disabled={selected.length === 0 || submitting}
-          className="rounded-md bg-moss px-5 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-6 w-full rounded-lg bg-marigold py-3.5 font-display text-[14px] font-semibold text-navy transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-navy-line disabled:text-muted-dim"
         >
-          {submitting ? "Sending…" : "Build my itinerary"}
+          {submitting ? "Building…" : "Plan my trip →"}
         </button>
         {selected.length === 0 && (
-          <span className="text-sm text-muted">Pick at least one interest to continue.</span>
+          <p className="mt-2.5 text-center text-[12px] text-muted-dim">
+            Pick at least one interest.
+          </p>
         )}
-      </div>
+      </aside>
     </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-navy-line py-4">
+      <span className="text-[13px] text-cream/80">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Stepper({
+  value,
+  min,
+  max,
+  onChange,
+  unit,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+  unit: string;
+}) {
+  return (
+    <span className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        aria-label={`Fewer ${unit}`}
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-navy-line text-cream transition hover:border-marigold disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="min-w-[3.5rem] text-center font-mono text-[13px] text-cream">
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        aria-label={`More ${unit}`}
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-navy-line text-cream transition hover:border-marigold disabled:opacity-30"
+      >
+        +
+      </button>
+    </span>
   );
 }
 
 /**
  * Shown when a brief is valid but cannot be planned.
  *
- * The server already worked out what WOULD work, so this offers those as one
- * click instead of telling the reader to go and guess. Nothing here overrides the
+ * The server already worked out what WOULD work, so this offers those in one
+ * click rather than telling the reader to go and guess. Nothing here overrides the
  * seasonal filter — putting someone on a monsoon trek is the failure this is
  * deliberately keeping.
  */
@@ -238,9 +322,9 @@ function NoMatches({
   onRaiseBudget: (band: number) => void;
 }) {
   return (
-    <div className="space-y-4 rounded-xl border border-clay/30 bg-clay-soft p-5">
+    <div className="mt-8 space-y-4 rounded-2xl border border-terracotta/30 bg-terracotta-soft p-5">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold text-clay">Nothing matches that yet</h2>
+        <p className="eyebrow text-terracotta">Nothing matches that yet</p>
         <p className="text-sm text-ink/80">{detail.message}</p>
       </div>
 
@@ -278,7 +362,7 @@ function NoMatches({
 function Suggestions({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      <p className="eyebrow text-muted">{title}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   );
@@ -289,60 +373,9 @@ function Chip({ onClick, children }: { onClick: () => void; children: React.Reac
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-moss/40 bg-card px-3 py-1 text-sm text-moss transition hover:bg-moss hover:text-white"
+      className="rounded-full border border-teal/40 bg-card px-3 py-1 text-sm text-teal transition hover:bg-teal hover:text-cream"
     >
       {children}
     </button>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-2">
-      {/* block, not inline: an inline label sits beside an inline-flex stepper
-          instead of above it, and space-y has no effect on inline siblings. */}
-      <span className="block text-sm font-medium">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Stepper({
-  value,
-  min,
-  max,
-  onChange,
-  suffix,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  onChange: (next: number) => void;
-  suffix: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-3">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(min, value - 1))}
-        disabled={value <= min}
-        aria-label="Decrease"
-        className="h-8 w-8 rounded-md border border-line bg-card text-lg leading-none disabled:opacity-30"
-      >
-        −
-      </button>
-      <span className="min-w-[5.5rem] text-sm tabular-nums">
-        {value} {suffix}
-      </span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(max, value + 1))}
-        disabled={value >= max}
-        aria-label="Increase"
-        className="h-8 w-8 rounded-md border border-line bg-card text-lg leading-none disabled:opacity-30"
-      >
-        +
-      </button>
-    </span>
   );
 }

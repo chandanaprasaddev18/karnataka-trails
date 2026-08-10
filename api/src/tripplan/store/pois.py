@@ -115,7 +115,7 @@ async def fetch_candidates(
                p.cost_min_paise, p.cost_max_paise, p.difficulty,
                p.is_repeatable, p.media, p.data_confidence,
                (p.verified_at IS NOT NULL) AS is_verified,
-               r.slug AS region_slug, r.name AS region_name,
+               r.slug AS region_slug, r.name AS region_name, r.media AS region_media,
                COALESCE(m.match_weight, 0) AS match_weight,
                COALESCE(t.tags, '{{}}') AS tags,
                {detail_cols}
@@ -154,7 +154,11 @@ async def fetch_candidates(
                 kind=kind,
                 name=str(row["name"]),
                 summary=str(row["summary"]),
-                region=RegionRef(slug=str(row["region_slug"]), name=str(row["region_name"])),
+                region=RegionRef(
+                    slug=str(row["region_slug"]),
+                    name=str(row["region_name"]),
+                    media=list(row["region_media"] or []),
+                ),
                 point=GeoPoint(lat=float(row["lat"]), lon=float(row["lon"])),
                 duration_minutes=row["typical_duration_minutes"],
                 cost_band=row["cost_band"],
@@ -287,10 +291,14 @@ async def interest_labels(conn: DbConn, slugs: tuple[str, ...]) -> list[dict[str
 
 
 async def region_ref(conn: DbConn, slug: str) -> RegionRef | None:
-    row = await conn.fetchrow("SELECT slug, name FROM regions WHERE slug = $1", slug)
+    row = await conn.fetchrow("SELECT slug, name, media FROM regions WHERE slug = $1", slug)
     if row is None:
         return None
-    return RegionRef(slug=str(row["slug"]), name=str(row["name"]))
+    return RegionRef(
+        slug=str(row["slug"]),
+        name=str(row["name"]),
+        media=list(row["media"] or []),
+    )
 
 
 # ---------------------------------------------------------------------------

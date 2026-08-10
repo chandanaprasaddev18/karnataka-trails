@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, 
 from fastapi.middleware.cors import CORSMiddleware
 
 from tripplan.api.schemas import (
+    DistrictOut,
     HealthOut,
     InterestOut,
     JobStatusOut,
@@ -139,6 +140,58 @@ async def list_interests(conn: Conn) -> list[InterestOut]:
         )
         for r in rows
     ]
+
+
+@app.get("/api/districts", response_model=list[DistrictOut], tags=["taxonomy"])
+async def list_districts(conn: Conn) -> list[DistrictOut]:
+    """Districts with published content, for the home page cards.
+
+    Ordered by how much we can actually plan there, so the front page never leads
+    with a district we have no data for. Phase 1 has one; Phase 2 adds more and
+    this endpoint does not change.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT d.slug, d.name, d.media,
+               count(p.id) FILTER (WHERE p.kind IN ('place', 'activity')) AS places
+        FROM regions d
+        LEFT JOIN regions r ON r.path LIKE d.path || '%'
+        LEFT JOIN pois p ON p.region_id = r.id AND p.status = 'published'
+        WHERE d.kind = 'district'
+        GROUP BY d.slug, d.name, d.media
+        HAVING count(p.id) > 0
+        ORDER BY count(p.id) DESC, d.name
+        """
+    )
+
+    out: list[DistrictOut] = []
+    for row in rows:
+        interests = await conn.fetch(
+            """
+            SELECT it.label
+            FROM pois p
+            JOIN regions r ON r.id = p.region_id
+            JOIN poi_tags pt ON pt.poi_id = p.id
+            JOIN interest_tags it ON it.id = pt.tag_id
+            WHERE p.status = 'published'
+              AND it.kind = 'interest'
+              AND r.path LIKE (SELECT path FROM regions WHERE slug = $1) || '%'
+            GROUP BY it.label
+            ORDER BY count(*) DESC
+            LIMIT 3
+            """,
+            row["slug"],
+        )
+        out.append(
+            DistrictOut(
+                slug=str(row["slug"]),
+                name=str(row["name"]),
+                published_places=int(row["places"]),
+                media=list(row["media"] or []),
+                top_interests=[str(i["label"]) for i in interests],
+            )
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------

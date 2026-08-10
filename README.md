@@ -16,6 +16,7 @@ make up          # Postgres 17 + pgvector on :5434
 make migrate     # apply migrations
 make seed        # load taxonomy, regions, POIs (as status=draft)
 make publish     # promote fact-checked POIs to status=published
+make fetch-photos # download CC photos from Wikimedia Commons (optional)
 make plan        # generate an itinerary on the CLI
 ```
 
@@ -29,7 +30,26 @@ make plan        # generate an itinerary on the CLI
 | `api/migrations/` | Forward-only, checksummed SQL migrations |
 | `api/seeds/` | Curated YAML seed data + loader input |
 | `web/` | Next.js frontend |
+| `web/public/photos/` | Downloaded photographs — generated, gitignored |
 | `docs/architecture.md` | The design plan this build follows |
+
+## Photographs
+
+`make fetch-photos` sources images from Wikimedia Commons and saves them locally.
+Three rules keep it honest:
+
+- A photo is attached only when the Commons **file title names the place**. A
+  wrong photo misinforms a traveller, so an unmatched place simply gets a
+  generated gradient instead.
+- Only *places* get photographs. A stay is a private property with no Commons
+  image, and an activity's name describes an action rather than a location — that
+  is how "Birding morning at Bhadra" once matched a cormorant photo from
+  Bangalore. Both fall back to their locality's image.
+- **No readable licence, no photo.** Author and licence are stored and rendered on
+  every image, because attribution is a condition of the licence.
+
+Roughly 26 of 60 records get a photo. That ratio is the point: the gaps are
+honest.
 
 ## The four rules
 

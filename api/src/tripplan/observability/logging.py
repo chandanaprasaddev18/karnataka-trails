@@ -15,6 +15,10 @@ import structlog
 
 def configure_logging(*, level: str = "INFO", json_output: bool = False) -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper())
+    # httpx logs every request at INFO, which buries our own events during the
+    # photo fetch. Warnings still surface.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     processors: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,

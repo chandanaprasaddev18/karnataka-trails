@@ -33,7 +33,7 @@ ORIGIN ?= Bengaluru
 
 .DEFAULT_GOAL := help
 .PHONY: help env install install-api up up-llm down down-v ps logs wait migrate db-info \
-        config-show psql seed seed-taxonomy seed-pois publish plan api worker \
+        config-show psql seed seed-taxonomy seed-pois publish fetch-photos plan api worker \
         test test-unit lint fmt typecheck check check-all clean \
         web-install web-dev web-check web-build
 
@@ -108,6 +108,9 @@ seed-pois: ## Load POIs and guides (loads as status=draft)
 
 publish: ## Promote fact-checked POIs to status=published (see step 4 gate)
 	$(UV) run tripplan publish
+
+fetch-photos: ## Source CC photos from Wikimedia Commons into web/public/photos
+	$(UV) run tripplan fetch-photos $(if $(OVERWRITE),--overwrite,)
 
 # --- engine ----------------------------------------------------------------
 

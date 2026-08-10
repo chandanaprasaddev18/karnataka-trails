@@ -1,32 +1,76 @@
 @import "tailwindcss";
 
 /*
- * A deliberately restrained palette: warm paper, ink, and a single moss accent
- * borrowed from the coffee country this app plans trips through. One accent
- * colour keeps the warning states legible, which matters more here than variety
- * — an itinerary carrying six advisories must not look like a christmas tree.
+ * PALETTE
+ *
+ * The mockup pairs deep navy with cream and then reaches for four accents —
+ * orange, pink, teal and yellow. Four is too many once real photographs are on
+ * the page: every card already carries its own colour, so competing accents make
+ * the layout noisy and, more practically, make the warning states stop reading as
+ * warnings. An itinerary here routinely carries five or six advisories, and those
+ * have to be the loudest thing on the screen.
+ *
+ * So: the navy/cream base is kept — it makes photographs sit forward — and the
+ * accents are cut to three with distinct jobs.
+ *
+ *   marigold    primary action, selected state. Temple marigolds and the
+ *               turmeric-and-coffee warmth of this district.
+ *   terracotta  the timeline, and anything cautionary. Laterite soil.
+ *   teal        quiet affirmative detail — verified, included, available.
+ *               Western Ghats water.
+ *
+ * Nothing else gets a colour. Everything structural is navy, cream, or a step
+ * between them.
  */
 @theme {
-  --color-paper: #faf7f2;
+  /* base */
+  --color-navy: #14203b;
+  --color-navy-mid: #1b2c4f;
+  --color-navy-soft: #27395f;
+  --color-navy-line: #32456e;
+  --color-cream: #fbf7f0;
   --color-card: #ffffff;
-  --color-ink: #1c1917;
-  --color-muted: #6b6560;
-  --color-line: #e7e1d8;
-  --color-moss: #3f6146;
-  --color-moss-soft: #eef2ee;
-  --color-clay: #a8552f;
-  --color-clay-soft: #fbf0ea;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-ink: #14203b;
+  --color-muted: #6d7590;
+  --color-muted-dim: #97a0bd;
+  --color-line: #e8e1d5;
+
+  /* accents — three, each with one job */
+  --color-marigold: #e8992f;
+  --color-marigold-soft: #fdf1dd;
+  --color-terracotta: #bf5230;
+  --color-terracotta-soft: #fbeee8;
+  --color-teal: #16797f;
+  --color-teal-soft: #e6f1f1;
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-jakarta);
+  --font-mono: var(--font-plex-mono);
 }
 
 html {
-  background: var(--color-paper);
+  background: var(--color-cream);
   color: var(--color-ink);
 }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* An eyebrow: small, spaced, monospaced. Used above headings throughout. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Focus ring that survives on both the navy and cream halves of the app. */
+:focus-visible {
+  outline: 2px solid var(--color-marigold);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-import type { Infeasible, Interest, PlanAccepted, PlanStatus } from "./types";
+import type { District, Infeasible, Interest, PlanAccepted, PlanStatus } from "./types";
 
 /**
  * API client.
@@ -66,6 +66,12 @@ async function parseError(response: Response): Promise<string> {
 
 export async function fetchInterests(): Promise<Interest[]> {
   const response = await fetch(`${BASE}/api/taxonomy/interests`, { cache: "no-store" });
+  if (!response.ok) throw new ApiError(await parseError(response), response.status);
+  return response.json();
+}
+
+export async function fetchDistricts(): Promise<District[]> {
+  const response = await fetch(`${BASE}/api/districts`, { cache: "no-store" });
   if (!response.ok) throw new ApiError(await parseError(response), response.status);
   return response.json();
 }

@@ -68,6 +68,10 @@ class TagRef(BaseModel):
 class RegionRef(BaseModel):
     slug: str
     name: str
+    # Hero imagery, same jsonb shape as pois.media. Every entry carries artist,
+    # licence and source page — the UI must render them, so they travel with the
+    # image rather than being looked up separately.
+    media: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class OriginRef(BaseModel):
@@ -271,6 +275,9 @@ class ItineraryItem(BaseModel):
     poi_id: UUID
     name: str
     summary: str
+    # The taluk this stop is in. Carries its own imagery, so an activity — which
+    # never gets its own photograph — can show its locality instead of nothing.
+    region: RegionRef | None = None
     why_chosen: str | None = None
     start_time_estimate: str | None = None
     duration_minutes: int | None = None

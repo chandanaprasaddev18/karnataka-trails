@@ -21,6 +21,7 @@ from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging
 from tripplan.render import render_text
 from tripplan.store.itineraries import create_request, save_itinerary
+from tripplan.store.photos import fetch_photos
 from tripplan.store.seed import (
     load_guides,
     load_interest_tags,
@@ -244,6 +245,37 @@ def worker(
             typer.echo(f"ran job {job_id}" if job_id else "queue empty")
         else:
             await run_worker()
+
+    asyncio.run(_run())
+
+
+@app.command("fetch-photos")
+def fetch_photos_cmd(
+    district: str = DEFAULT_DISTRICT,
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Re-fetch records that already have a photo."
+    ),
+    limit: int | None = typer.Option(None, help="Only process this many POIs (for a quick trial)."),
+) -> None:
+    """Attach Creative Commons photos from Wikimedia Commons.
+
+    A photo is only stored when the file's own metadata ties it to the place, and
+    only when its licence and author can be read — attribution is a licence
+    condition. Anything uncertain is left without a photo and reported.
+    """
+
+    async def _run() -> None:
+        cfg = get_settings()
+        async with connect(cfg) as conn:
+            report = await fetch_photos(
+                conn,
+                district=district,
+                photos_dir=cfg.photos.dir,
+                public_prefix=cfg.photos.public_prefix,
+                overwrite=overwrite,
+                limit=limit,
+            )
+        typer.echo(report.render())
 
     asyncio.run(_run())
 

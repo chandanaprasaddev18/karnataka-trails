@@ -93,6 +93,24 @@ class LlmSettings(BaseModel):
         return bool(self.api_key.get_secret_value())
 
 
+class PhotoSettings(BaseModel):
+    """Where sourced photographs are saved, and the URL they are served from.
+
+    Images are downloaded once by `tripplan fetch-photos` and served from the
+    frontend's own static directory. Hotlinking Wikimedia at request time gets
+    rate-limited (their CDN returns 429 under even mild bursts), leans on a free
+    service for every page view, and makes page loads depend on an external host.
+    """
+
+    dir: Path = REPO_ROOT / "web" / "public" / "photos"
+    # The URL prefix the frontend serves `dir` from. `/photos` because the
+    # directory sits inside web/public.
+    public_prefix: str = "/photos"
+    # Commons thumbnail width to request. 1280 is enough for a full-bleed hero on
+    # a 2x display without pulling multi-megabyte originals.
+    width: int = 1280
+
+
 class WorkerSettings(BaseModel):
     poll_interval_seconds: float = Field(default=2.0, gt=0)
     # A job whose lock is older than this is considered abandoned and may be
@@ -114,6 +132,7 @@ class Settings(BaseSettings):
     routing: RoutingSettings = RoutingSettings()
     planning: PlanningSettings = PlanningSettings()
     llm: LlmSettings = LlmSettings()
+    photos: PhotoSettings = PhotoSettings()
     worker: WorkerSettings = WorkerSettings()
 
     log_level: str = "INFO"

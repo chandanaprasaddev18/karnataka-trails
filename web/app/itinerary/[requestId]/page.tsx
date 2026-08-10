@@ -7,5 +7,9 @@ import { PlanProgress } from "@/components/PlanProgress";
  */
 export default async function ItineraryPage(props: PageProps<"/itinerary/[requestId]">) {
   const { requestId } = await props.params;
-  return <PlanProgress requestId={requestId} />;
+  return (
+    <main>
+      <PlanProgress requestId={requestId} />
+    </main>
+  );
 }

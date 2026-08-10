@@ -112,6 +112,48 @@ covered by a test in `api/tests/test_engine.py`.
 - New POI rows require `source` and `data_confidence`. Guides must not carry
   invented names or contact details — a test enforces this.
 
+## Photographs
+
+`store/photos.py` sources Creative Commons images from Wikimedia Commons via
+`tripplan fetch-photos`. Four rules, all of them there for a reason that bit:
+
+1. **The file TITLE must name the place.** Matching on the description or
+   categories was tried and attached wrong images — a description mentioning
+   "Chikkamagaluru district" is not evidence the photograph shows the place asked
+   about.
+2. **Only places.** Stays are private properties with no Commons photo, and an
+   activity's name describes an action: "Birding morning at Bhadra" matched
+   "Cormorant in the early morning sun" and put a Bangalore photo on a Bhadra
+   activity. Both fall back to their locality's image in the UI.
+3. **Reject contradicting locations.** Karnataka shares names with its
+   neighbours; "Kalhatty Falls ooty.jpg" is a Tamil Nadu waterfall with the same
+   name as ours. `_CONTRADICTING_PLACES` catches that class.
+4. **No readable licence, no photo.** Attribution is a licence condition, so
+   `artist`, `license` and `source_page` are stored and *rendered* on every image.
+
+Images are **downloaded**, not hotlinked: Commons returned 429 under mild bursts
+through Next's image optimiser, and a page load should not depend on a free
+external service. `web/public/photos/` is generated and gitignored — repopulate
+with `make fetch-photos`.
+
+About half the records have no photo. That is the correct outcome, and the UI
+renders a generated gradient rather than a stand-in image.
+
+## Design language
+
+Follows `trip-planner-web-mockups.html`: deep navy paired with cream, Fraunces
+for display, IBM Plex Mono for eyebrows, passport-stamp interest cards, a dotted
+timeline.
+
+Where it deliberately diverges: the mockup uses four accents (orange, pink, teal,
+yellow). With real photographs on the page every card already carries its own
+colour, so four competing accents made the layout noisy and — the thing that
+actually mattered — stopped the warning states reading as warnings. An itinerary
+here routinely carries five or six advisories and those must be the loudest
+element. Cut to three, each with one job: **marigold** for primary action and
+selection, **terracotta** for the timeline and anything cautionary, **teal** for
+quiet affirmative detail. Nothing else gets a colour.
+
 ## Frontend notes
 
 - **Next 16.** `next dev` writes `web/AGENTS.md` (and a `CLAUDE.md` that includes
@@ -127,6 +169,14 @@ covered by a test in `api/tests/test_engine.py`.
   server-side; the client divides paise by 100 for display only. A number on
   screen cannot disagree with the number that was stored.
 - `make web-check` type-checks the frontend; `make check-all` runs both sides.
+- **`PhotoFrame` takes an explicit `variant`, not overriding classes.** Tailwind
+  emits `relative` after `absolute` in its own canonical order, so a caller's
+  `absolute inset-0` silently loses to the component's `relative`, the wrapper
+  collapses to zero height, and the image renders nothing. Use
+  `variant="cover"` for a background and `variant="sized"` for a thumbnail.
+- **Testing a mobile layout needs CDP device emulation.** Headless Chrome's
+  `--window-size` does not set the layout viewport, so a narrow screenshot just
+  crops a desktop-width render and looks like an overflow bug that is not there.
 
 ## Known gaps and follow-ups
 

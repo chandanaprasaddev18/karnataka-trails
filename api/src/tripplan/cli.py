@@ -16,6 +16,7 @@ from tripplan.config import get_settings
 from tripplan.db import apply_migrations, connect
 from tripplan.engine.brief import BriefError, build_brief
 from tripplan.engine.pipeline import EngineError, generate
+from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging
 from tripplan.render import render_text
 from tripplan.store.itineraries import create_request, save_itinerary
@@ -172,6 +173,12 @@ def plan(
     month: int | None = typer.Option(None, help="Travel month 1-12; defaults to now."),
     save: bool = typer.Option(True, help="Persist the request and itinerary."),
     as_json: bool = typer.Option(False, "--json", help="Emit the raw payload instead of cards."),
+    no_llm: bool = typer.Option(
+        False,
+        "--no-llm",
+        help="Force the deterministic composer, ignoring TRIPPLAN_LLM__BACKEND. "
+        "Use this to produce the baseline for a side-by-side comparison.",
+    ),
 ) -> None:
     """Generate an itinerary on the command line."""
 
@@ -201,8 +208,9 @@ def plan(
                 )
                 brief = brief.model_copy(update={"request_id": request_id})
 
+            composer = None if no_llm else build_composer(cfg)
             try:
-                result = await generate(conn, brief, cfg)
+                result = await generate(conn, brief, cfg, composer=composer)
             except EngineError as exc:
                 typer.secho(f"engine: {exc}", fg=typer.colors.RED, err=True)
                 raise typer.Exit(code=1) from exc

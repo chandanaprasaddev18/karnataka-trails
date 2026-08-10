@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
 
 import asyncpg
 
@@ -35,6 +34,7 @@ from tripplan.domain.taxonomy import ComposerName
 from tripplan.engine import assemble as assemble_stage
 from tripplan.engine import compose_greedy, routing
 from tripplan.engine import validate as validate_stage
+from tripplan.llm.base import Composer
 from tripplan.observability.logging import get_logger
 from tripplan.routing.static_provider import StaticEstimateProvider
 from tripplan.store import pois as poi_store
@@ -44,26 +44,6 @@ log = get_logger(__name__)
 
 class EngineError(RuntimeError):
     """Raised when the engine cannot produce an itinerary at all."""
-
-
-class Composer(Protocol):
-    """Stage 2. Returns a draft, or None to decline (unconfigured, unreachable)."""
-
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def model(self) -> str | None: ...
-
-    async def compose(
-        self,
-        brief: TripBrief,
-        candidates: CandidateSet,
-        *,
-        day_activity_minutes: int,
-        repair_of: DraftItinerary | None = None,
-        violations: str | None = None,
-    ) -> DraftItinerary | None: ...
 
 
 @dataclass

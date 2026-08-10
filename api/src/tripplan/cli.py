@@ -15,7 +15,19 @@ import typer
 from tripplan.config import get_settings
 from tripplan.db import apply_migrations, connect
 from tripplan.observability.logging import configure_logging
-from tripplan.store.seed import load_interest_tags, load_regions
+from tripplan.store.seed import (
+    load_guides,
+    load_interest_tags,
+    load_pois,
+    load_regions,
+)
+from tripplan.store.seed import (
+    publish as publish_seed,
+)
+
+# Phase 1 ships one district. When Phase 2 adds more, this becomes a required
+# argument rather than a default.
+DEFAULT_DISTRICT = "chikkamagaluru"
 
 app = typer.Typer(
     add_completion=False,
@@ -98,6 +110,49 @@ def seed_taxonomy() -> None:
             tags = await load_interest_tags(conn, cfg.seeds_dir)
             regions = await load_regions(conn, cfg.seeds_dir)
         typer.echo(f"upserted {tags} interest tag(s) and {regions} region(s)")
+
+    asyncio.run(_run())
+
+
+@app.command("seed-pois")
+def seed_pois(district: str = DEFAULT_DISTRICT) -> None:
+    """Load POIs and guides for a district. Rows land as status='draft'."""
+
+    async def _run() -> None:
+        cfg = get_settings()
+        async with connect(cfg) as conn:
+            report = await load_pois(conn, cfg.seeds_dir, district)
+            guides = await load_guides(conn, cfg.seeds_dir, district)
+        typer.echo(report.render())
+        typer.echo(f"loaded {guides} guide(s)")
+        typer.echo(
+            "\nAll rows are status='draft' and invisible to the engine. "
+            "Fact-check, then run 'make publish'."
+        )
+
+    asyncio.run(_run())
+
+
+@app.command()
+def publish(
+    min_confidence: int = 2,
+    include_placeholders: bool = typer.Option(
+        False,
+        "--include-placeholders",
+        help="LOCAL DEV ONLY: also publish synthetic placeholder rows.",
+    ),
+) -> None:
+    """Promote reviewed seed rows to status='published' so the engine can see them."""
+
+    async def _run() -> None:
+        cfg = get_settings()
+        async with connect(cfg) as conn:
+            report = await publish_seed(
+                conn,
+                min_confidence=min_confidence,
+                include_placeholders=include_placeholders,
+            )
+        typer.echo(report.render())
 
     asyncio.run(_run())
 

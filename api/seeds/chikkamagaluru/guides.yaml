@@ -1,0 +1,103 @@
+# Guides — Chikkamagaluru district.
+#
+# ------------------------------------------------------------------------
+# ALL PLACEHOLDERS. NONE OF THESE ARE REAL PEOPLE.
+#
+# Guide records are personal data plus a commercial relationship, so inventing
+# plausible names and numbers would be actively harmful — a traveller could try
+# to contact someone who does not exist, and a real person's number could be
+# guessed into the file by accident.
+#
+# Every row here is therefore explicitly synthetic: source='placeholder',
+# confidence=1, empty contact, and a name that reads as a role rather than a
+# person. They exist only so the engine and the frontend can exercise the
+# "guide details where available" path end to end.
+#
+# Before publishing any of these: replace with a real guide who has consented
+# to being listed, fill `contact`, set is_verified, and raise `confidence`.
+# Anything still marked source='placeholder' must NOT be promoted.
+# ------------------------------------------------------------------------
+
+- slug: guide-kudremukh-forest-guide
+  name: Kudremukh Registered Forest Guide (placeholder)
+  region: kalasa
+  languages: [kn, en]
+  day_rate_paise: 150000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [trekking, wildlife, nature]
+  # Guides attach to the POIs they actually cover; the engine surfaces them on
+  # those items only.
+  pois: [kudremukh-peak, kudremukh-national-park, act-kudremukh-peak-trek]
+
+- slug: guide-bhadra-naturalist
+  name: Bhadra Naturalist (placeholder)
+  region: tarikere
+  languages: [kn, en, hi]
+  day_rate_paise: 200000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [wildlife, nature, photography]
+  pois:
+    - bhadra-wildlife-sanctuary
+    - act-bhadra-jeep-safari
+    - act-birding-bhadra
+    - act-bhadra-coracle-boating
+
+- slug: guide-mudigere-trek-lead
+  name: Mudigere Trek Lead (placeholder)
+  region: mudigere
+  languages: [kn, en]
+  day_rate_paise: 120000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [trekking, adventurous, offbeat]
+  pois:
+    - ballalarayana-durga
+    - ettina-bhuja
+    - act-ettina-bhuja-trek
+    - act-bandaje-ballalarayana-trek
+
+- slug: guide-sringeri-temple-guide
+  name: Sringeri Temple Guide (placeholder)
+  region: sringeri
+  languages: [kn, en, sa]
+  day_rate_paise: 80000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [spiritual, heritage]
+  pois:
+    - sringeri-sharada-peetham
+    - vidyashankara-temple
+    - act-sringeri-heritage-walk
+
+- slug: guide-chikkamagaluru-estate-host
+  name: Chikkamagaluru Estate Host (placeholder)
+  region: chikkamagaluru-taluk
+  languages: [kn, en]
+  day_rate_paise: 100000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [coffee-country, relaxation, heritage]
+  pois:
+    - act-coffee-plantation-walk
+    - coffee-museum-chikkamagaluru
+
+- slug: guide-kemmangundi-jeep-driver
+  name: Kemmangundi Jeep Driver (placeholder)
+  region: tarikere
+  languages: [kn]
+  day_rate_paise: 90000
+  is_verified: false
+  source: placeholder
+  confidence: 1
+  tags: [adventurous, nature]
+  pois:
+    - hebbe-falls
+    - jhari-falls
+    - act-hebbe-jeep-ride

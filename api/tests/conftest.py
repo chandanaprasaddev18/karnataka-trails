@@ -6,7 +6,8 @@ works on a laptop with Docker stopped and `make test` works everywhere.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 import asyncpg
 import pytest
@@ -39,3 +40,27 @@ async def db(settings: Settings) -> AsyncIterator[asyncpg.Connection]:
         yield conn
     finally:
         await conn.close()
+
+
+class _RollbackError(Exception):
+    """Sentinel used to unwind a transaction without leaving rows behind."""
+
+
+@pytest.fixture
+def rolled_back() -> Callable[[asyncpg.Connection], AbstractAsyncContextManager[None]]:
+    """Run a block in a transaction that is always rolled back.
+
+    Lets a test insert real rows and exercise real constraints without polluting
+    the database for the next test. Java analogue: @Transactional @Rollback.
+    """
+
+    @asynccontextmanager
+    async def _ctx(conn: asyncpg.Connection) -> AsyncIterator[None]:
+        try:
+            async with conn.transaction():
+                yield
+                raise _RollbackError
+        except _RollbackError:
+            pass
+
+    return _ctx

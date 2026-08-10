@@ -1,0 +1,593 @@
+# Places to visit — Chikkamagaluru district.
+#
+# ------------------------------------------------------------------------
+# THIS IS A DRAFT SEED SET AND NEEDS A FACT-CHECK PASS.
+#
+# Everything here is hand-compiled from general knowledge, loads as
+# status='draft', and is INVISIBLE to the itinerary engine until promoted with
+# `make publish`. Treat every field as a claim to verify, in this order:
+#   1. coords            — a wrong coordinate silently corrupts every route
+#   2. entry_fee_paise   — money, and it changes
+#   3. duration_minutes  — the engine budgets whole days against this
+#   4. best_months       — drives the seasonal filter
+# `confidence` is my own estimate, 1 (guess) to 5 (certain):
+#   3 = well-known landmark, coordinates and name I am confident in
+#   2 = exists and is correctly named, but a detail here is likely imprecise
+# ------------------------------------------------------------------------
+#
+# All money is integer PAISE (100 paise = 1 rupee), so 3000 = ₹30.
+# `cost` is [min, max]. `tags` maps an interest_tags slug to a weight 1-100;
+# the weight is what makes stage 1 rank a real peak above a gentle garden walk
+# for the same 'trekking' tag.
+
+# --- the Chandra Drona range, above Chikkamagaluru town ---------------------
+
+- slug: mullayanagiri
+  name: Mullayanagiri
+  region: chikkamagaluru-taluk
+  coords: [13.3917, 75.7186]
+  summary: The highest peak in Karnataka at 1,930 m, reached by a short stepped climb.
+  description: >-
+    The summit of the Chandra Drona range and the highest point in the state. A
+    motorable road climbs most of the way; the last stretch is a flight of steps
+    to a small Shiva shrine on the top. Mornings before about nine are clear;
+    after that the ridge usually fills with cloud.
+  duration_minutes: 150
+  cost_band: 1
+  cost: [0, 5000]
+  difficulty: 2
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {trekking: 95, nature: 85, photography: 90, offbeat: 30}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: viewpoint
+    best_time_of_day: sunrise
+    entry_fee_paise: 3000
+    requires_permit: false
+
+- slug: baba-budangiri
+  name: Baba Budangiri
+  region: chikkamagaluru-taluk
+  coords: [13.4167, 75.7333]
+  summary: A ridge shrine revered by both Hindus and Muslims, on a long open plateau.
+  description: >-
+    Also called Dattapeetha. The cave shrine is associated with the Sufi saint
+    Baba Budan, who is credited with bringing coffee to India, and is venerated
+    by both communities. The drive up runs along an exposed grassland ridge with
+    long views on both sides.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 3000]
+  difficulty: 1
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {spiritual: 90, trekking: 60, nature: 70, heritage: 55, photography: 70}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+    requires_permit: false
+
+- slug: manikyadhara-falls
+  name: Manikyadhara Falls
+  region: chikkamagaluru-taluk
+  coords: [13.4083, 75.7250]
+  summary: A fine spray-like fall on the Baba Budangiri road, considered sacred.
+  duration_minutes: 45
+  cost_band: 1
+  cost: [0, 2000]
+  difficulty: 1
+  best_months: [7, 8, 9, 10, 11, 12, 1]
+  tags: {nature: 75, spiritual: 55, photography: 60}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: morning
+    entry_fee_paise: 0
+    requires_permit: false
+
+- slug: seethalayyanagiri
+  name: Seethalayyanagiri
+  region: chikkamagaluru-taluk
+  coords: [13.4000, 75.7278]
+  summary: A quiet ridge temple between Mullayanagiri and Baba Budangiri.
+  duration_minutes: 45
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {spiritual: 70, nature: 65, offbeat: 60, photography: 55}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: deviramma-betta
+  name: Devirammana Betta
+  region: chikkamagaluru-taluk
+  coords: [13.4250, 75.7139]
+  summary: A steep hill temple near Mullayanagiri, best reached on foot.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 3
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 75, spiritual: 65, offbeat: 80}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: hirekolale-lake
+  name: Hirekolale Lake
+  region: chikkamagaluru-taluk
+  coords: [13.3583, 75.7361]
+  summary: An irrigation lake ringed by hills, ten minutes from Chikkamagaluru town.
+  duration_minutes: 45
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {nature: 70, relaxation: 75, photography: 65, family-friendly: 70}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: lake
+    best_time_of_day: sunset
+    entry_fee_paise: 0
+
+- slug: coffee-museum-chikkamagaluru
+  name: Coffee Museum
+  region: chikkamagaluru-taluk
+  coords: [13.3161, 75.7720]
+  summary: A small museum in town on the history and processing of Indian coffee.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [2000, 5000]
+  difficulty: 1
+  tags: {coffee-country: 85, heritage: 50, family-friendly: 60, relaxation: 40}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: museum
+    best_time_of_day: afternoon
+    entry_fee_paise: 3000
+
+# --- Kemmangundi and the Tarikere side -------------------------------------
+
+- slug: kemmangundi
+  name: Kemmangundi
+  region: tarikere
+  coords: [13.5497, 75.7550]
+  summary: A hill station with terraced rose gardens, once the Mysore maharaja's retreat.
+  description: >-
+    Also known as K.R. Hills. The gardens and the short walk to the Z Point
+    lookout are the main draws, and the whole plateau is usually several degrees
+    cooler than the valley below.
+  duration_minutes: 180
+  cost_band: 1
+  cost: [2000, 8000]
+  difficulty: 1
+  best_months: [9, 10, 11, 12, 1, 2, 3]
+  tags: {nature: 85, relaxation: 80, photography: 75, family-friendly: 80, trekking: 45}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: garden
+    best_time_of_day: morning
+    entry_fee_paise: 3000
+
+- slug: z-point
+  name: Z Point
+  region: tarikere
+  coords: [13.5528, 75.7472]
+  summary: A short ridge walk from Kemmangundi ending at a sheer drop-off viewpoint.
+  duration_minutes: 90
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 2
+  best_months: [9, 10, 11, 12, 1, 2, 3]
+  tags: {trekking: 80, nature: 85, photography: 90}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: viewpoint
+    best_time_of_day: sunrise
+    entry_fee_paise: 0
+
+- slug: hebbe-falls
+  name: Hebbe Falls
+  region: tarikere
+  coords: [13.5722, 75.7278]
+  summary: A two-tier fall inside coffee estates, reached by a rough jeep track.
+  description: >-
+    The last few kilometres are only passable in a hired four-wheel drive, which
+    is part of the experience. The fall drops in two stages into a pool that is
+    usually shallow enough to stand in outside the monsoon.
+  duration_minutes: 180
+  cost_band: 2
+  cost: [45000, 70000]
+  difficulty: 2
+  best_months: [8, 9, 10, 11, 12, 1]
+  tags: {nature: 95, adventurous: 65, photography: 80, offbeat: 55}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: morning
+    entry_fee_paise: 0
+    requires_permit: false
+    notes: Jeep hire from the Kemmangundi gate is effectively compulsory; the cost range reflects a shared jeep.
+
+- slug: kalhatti-falls
+  name: Kalhatti Falls
+  region: tarikere
+  coords: [13.4861, 75.7333]
+  summary: A fall that drops past a Veerabhadra temple, on the road to Kemmangundi.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  best_months: [7, 8, 9, 10, 11, 12]
+  tags: {nature: 75, spiritual: 60, photography: 60}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: jhari-falls
+  name: Jhari Falls
+  region: tarikere
+  coords: [13.5333, 75.7583]
+  summary: Also called Buttermilk Falls; a milky cascade below Kemmangundi.
+  duration_minutes: 90
+  cost_band: 2
+  cost: [30000, 50000]
+  difficulty: 2
+  best_months: [8, 9, 10, 11, 12]
+  tags: {nature: 80, adventurous: 50, photography: 70, offbeat: 60}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: morning
+    entry_fee_paise: 0
+    notes: Reached by jeep track through estates.
+
+- slug: amruthapura-temple
+  name: Amruteshwara Temple, Amruthapura
+  region: tarikere
+  coords: [13.7333, 75.9000]
+  summary: A 12th-century Hoysala temple with an unusually fine lathe-turned pillar hall.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {heritage: 95, spiritual: 70, photography: 65, offbeat: 70}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+# --- Bhadra: Lakkavalli and the sanctuary ----------------------------------
+
+- slug: bhadra-dam-lakkavalli
+  name: Bhadra Dam, Lakkavalli
+  region: tarikere
+  coords: [13.7028, 75.6417]
+  summary: A large reservoir backed by forest, and the base for Bhadra water activities.
+  duration_minutes: 90
+  cost_band: 1
+  cost: [0, 5000]
+  difficulty: 1
+  tags: {nature: 75, relaxation: 70, photography: 65, family-friendly: 70}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: lake
+    best_time_of_day: sunset
+    entry_fee_paise: 0
+
+- slug: bhadra-wildlife-sanctuary
+  name: Bhadra Wildlife Sanctuary
+  region: tarikere
+  coords: [13.7000, 75.6333]
+  summary: A tiger reserve of dry and moist deciduous forest around the Bhadra reservoir.
+  description: >-
+    Elephant, gaur, sambar and leopard are all resident; tiger sightings are
+    rare. Entry is through the forest department, and safaris must be booked
+    rather than turned up for.
+  duration_minutes: 240
+  cost_band: 3
+  cost: [40000, 120000]
+  difficulty: 1
+  best_months: [10, 11, 12, 1, 2, 3, 4]
+  tags: {wildlife: 95, nature: 85, photography: 80, offbeat: 45}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: wildlife
+    best_time_of_day: morning
+    entry_fee_paise: 40000
+    requires_permit: true
+    notes: Forest department permit and advance safari booking required.
+
+# --- Sringeri and the Tunga valley -----------------------------------------
+
+- slug: sringeri-sharada-peetham
+  name: Sringeri Sharada Peetham
+  region: sringeri
+  coords: [13.4167, 75.2528]
+  summary: One of the four cardinal mathas founded by Adi Shankaracharya, on the Tunga.
+  description: >-
+    The temple complex sits on the bank of the Tunga, where the river is full of
+    tame carp that pilgrims feed. The adjacent Vidyashankara temple is the
+    architectural highlight, built where Hoysala and Vijayanagara styles meet.
+  duration_minutes: 150
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {spiritual: 100, heritage: 85, photography: 55, seniors: 80, family-friendly: 75}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: vidyashankara-temple
+  name: Vidyashankara Temple
+  region: sringeri
+  coords: [13.4172, 75.2531]
+  summary: A 14th-century temple whose twelve zodiac pillars catch the sun in turn.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {heritage: 95, spiritual: 80, photography: 70}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: sirimane-falls
+  name: Sirimane Falls
+  region: sringeri
+  coords: [13.4667, 75.2333]
+  summary: An accessible, gently stepped fall with a safe bathing pool near Sringeri.
+  duration_minutes: 90
+  cost_band: 1
+  cost: [2000, 6000]
+  difficulty: 1
+  best_months: [7, 8, 9, 10, 11, 12, 1]
+  tags: {nature: 85, relaxation: 70, family-friendly: 85, photography: 65}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: afternoon
+    entry_fee_paise: 3000
+
+- slug: hariharapura
+  name: Hariharapura
+  region: sringeri
+  coords: [13.4500, 75.3167]
+  summary: A riverside matha town on the Tunga, quiet outside festival days.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {spiritual: 80, offbeat: 75, heritage: 55}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: town
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+# --- Horanadu, Kalasa and the Kudremukh side -------------------------------
+
+- slug: horanadu-annapoorneshwari
+  name: Annapoorneshwari Temple, Horanadu
+  region: kalasa
+  coords: [13.2333, 75.2333]
+  summary: A temple to the goddess of food, which serves free meals to every visitor.
+  description: >-
+    The presiding deity is Adi Shakthyatmaka Annapoorneshwari, and the temple's
+    defining custom is that nobody leaves hungry: meals are served to all
+    pilgrims through the day.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {spiritual: 95, heritage: 60, seniors: 85, family-friendly: 80}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: kalaseshwara-temple
+  name: Kalaseshwara Temple, Kalasa
+  region: kalasa
+  coords: [13.2333, 75.3667]
+  summary: A Shiva temple above the Bhadra river, one of the district's older shrines.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {spiritual: 85, heritage: 65, offbeat: 55}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: kudremukh-peak
+  name: Kudremukh Peak
+  region: kalasa
+  coords: [13.1361, 75.2639]
+  summary: A horse-face shaped peak at 1,894 m, and the district's most demanding trek.
+  description: >-
+    The full route runs roughly 18 km return through shola forest and open
+    grassland inside a national park. A forest department permit and a guide are
+    both mandatory, and entry numbers are capped each day.
+  duration_minutes: 480
+  cost_band: 3
+  cost: [60000, 150000]
+  difficulty: 5
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 100, adventurous: 90, nature: 90, wildlife: 60, photography: 85, offbeat: 70}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: trail
+    best_time_of_day: sunrise
+    entry_fee_paise: 60000
+    requires_permit: true
+    notes: Forest department permit plus a mandatory guide; daily entry quota applies.
+
+- slug: kudremukh-national-park
+  name: Kudremukh National Park
+  region: kalasa
+  coords: [13.2167, 75.2500]
+  summary: Shola grassland and rainforest, among the wettest tracts in the Western Ghats.
+  duration_minutes: 240
+  cost_band: 2
+  cost: [30000, 80000]
+  difficulty: 2
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {wildlife: 90, nature: 95, trekking: 70, photography: 80}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: wildlife
+    best_time_of_day: morning
+    entry_fee_paise: 30000
+    requires_permit: true
+
+- slug: hanumanagundi-falls
+  name: Hanumanagundi Falls
+  region: kalasa
+  coords: [13.2333, 75.2000]
+  summary: A 22 m fall inside Kudremukh park, down a long flight of stone steps.
+  duration_minutes: 90
+  cost_band: 1
+  cost: [2000, 8000]
+  difficulty: 2
+  best_months: [8, 9, 10, 11, 12, 1]
+  tags: {nature: 85, photography: 70, offbeat: 60}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: waterfall
+    best_time_of_day: morning
+    entry_fee_paise: 5000
+    requires_permit: true
+
+# --- Mudigere, Charmadi and the western scarp ------------------------------
+
+- slug: ballalarayana-durga
+  name: Ballalarayana Durga Fort
+  region: mudigere
+  coords: [13.2000, 75.5167]
+  summary: A ruined Hoysala hill fort on a grassland ridge above the Charmadi scarp.
+  duration_minutes: 180
+  cost_band: 2
+  cost: [20000, 60000]
+  difficulty: 3
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 90, heritage: 75, nature: 80, offbeat: 85, photography: 80}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: fort
+    best_time_of_day: morning
+    entry_fee_paise: 0
+    requires_permit: true
+    notes: Forest check post at Sunkasale; the fort is the usual start of the Bandaje trek.
+
+- slug: charmadi-ghat
+  name: Charmadi Ghat
+  region: mudigere
+  coords: [13.0667, 75.4833]
+  summary: A tight hairpin descent through rainforest towards the coastal plain.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  best_months: [9, 10, 11, 12, 1, 2]
+  tags: {nature: 85, photography: 80, relaxation: 55, offbeat: 50}
+  source: hand_compiled
+  confidence: 3
+  place:
+    type: viewpoint
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: ettina-bhuja
+  name: Ettina Bhuja
+  region: mudigere
+  coords: [13.0500, 75.4333]
+  summary: A short sharp climb to a rock shoulder with a near-aerial view of the ghats.
+  duration_minutes: 300
+  cost_band: 2
+  cost: [20000, 50000]
+  difficulty: 4
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 95, adventurous: 75, nature: 85, offbeat: 85, photography: 85}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: trail
+    best_time_of_day: sunrise
+    entry_fee_paise: 0
+    requires_permit: true
+
+- slug: belavadi-veera-narayana
+  name: Veera Narayana Temple, Belavadi
+  region: chikkamagaluru-taluk
+  coords: [13.2833, 75.9333]
+  summary: A three-shrine Hoysala temple, quieter and less restored than Belur.
+  duration_minutes: 75
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {heritage: 95, spiritual: 70, photography: 75, offbeat: 65}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: temple
+    best_time_of_day: morning
+    entry_fee_paise: 0
+
+- slug: ayyanakere
+  name: Ayyanakere
+  region: kadur
+  coords: [13.4333, 75.8667]
+  summary: One of the largest tanks in the state, built under the Hoysalas.
+  duration_minutes: 60
+  cost_band: 1
+  cost: [0, 0]
+  difficulty: 1
+  tags: {nature: 70, heritage: 60, photography: 70, offbeat: 70, relaxation: 60}
+  source: hand_compiled
+  confidence: 2
+  place:
+    type: lake
+    best_time_of_day: sunset
+    entry_fee_paise: 0

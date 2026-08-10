@@ -1,0 +1,347 @@
+# Stays — Chikkamagaluru district.
+#
+# ------------------------------------------------------------------------
+# DRAFT SEED SET — THE HIGHEST-RISK FILE IN THE REPO. FACT-CHECK BEFORE USE.
+#
+# These are real, publicly known properties, but every commercial detail here is
+# UNVERIFIED and most of it changes seasonally:
+#   * per_night_min/max_paise  — indicative only; verify against current rates
+#   * max_occupancy            — my estimate of a typical room/cottage
+#   * contact                  — DELIBERATELY LEFT EMPTY. Do not guess a phone
+#                                number or an email; publishing a wrong one
+#                                sends real travellers to the wrong place.
+#   * amenities                — verify; I have listed only what is widely known
+#   * coords                   — approximate, usually the locality not the gate
+#
+# Nothing here reaches an itinerary until `make publish` promotes it, and the
+# engine only ever selects status='published'.
+#
+# When you verify a row: correct the fields, raise `confidence` to 4 or 5, and
+# fill `contact`. Anything you cannot verify should be deleted rather than
+# published — a missing stay degrades one itinerary, a wrong one misdirects a
+# traveller.
+# ------------------------------------------------------------------------
+#
+# cost_band 1-5 must stay comparable with places and activities, because one
+# budget filter runs across all three kinds. Rough mapping per night:
+#   1: under ₹2,500   2: ₹2,500-5,000   3: ₹5,000-10,000
+#   4: ₹10,000-20,000 5: above ₹20,000
+
+# --- Chikkamagaluru town and the ridge approaches --------------------------
+
+- slug: stay-serai-chikmagalur
+  name: The Serai Chikmagalur
+  region: chikkamagaluru-taluk
+  coords: [13.2833, 75.7167]
+  summary: A plantation resort with private pool villas inside a working coffee estate.
+  duration_minutes: null
+  cost_band: 5
+  cost: [1800000, 3500000]
+  tags: {relaxation: 95, coffee-country: 90, couples: 90, photography: 60}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: resort
+    per_night: [1800000, 3500000]
+    max_occupancy: 2
+    meals_included: true
+    amenities: [pool, restaurant, estate_walks, spa, wifi]
+
+- slug: stay-java-rain
+  name: Java Rain Resorts
+  region: chikkamagaluru-taluk
+  coords: [13.3667, 75.7333]
+  summary: A hillside resort on the Mullayanagiri road with valley-facing rooms.
+  duration_minutes: null
+  cost_band: 5
+  cost: [1500000, 2800000]
+  tags: {relaxation: 90, couples: 85, photography: 70, coffee-country: 60}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: resort
+    per_night: [1500000, 2800000]
+    max_occupancy: 3
+    meals_included: true
+    amenities: [restaurant, valley_view, wifi, indoor_games]
+
+- slug: stay-trivik-hotels
+  name: Trivik Hotels & Resorts
+  region: chikkamagaluru-taluk
+  coords: [13.3500, 75.7500]
+  summary: A terraced resort above a coffee estate, known for wide ridge views.
+  duration_minutes: null
+  cost_band: 4
+  cost: [900000, 1800000]
+  tags: {relaxation: 85, coffee-country: 75, family-friendly: 75, couples: 75}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: resort
+    per_night: [900000, 1800000]
+    max_occupancy: 3
+    meals_included: true
+    amenities: [pool, restaurant, estate_walks, wifi]
+
+- slug: stay-taj-gateway-chikmagalur
+  name: Gateway Chikmagalur
+  region: chikkamagaluru-taluk
+  coords: [13.3000, 75.7833]
+  summary: A large estate hotel on the edge of town, the most conventional option here.
+  duration_minutes: null
+  cost_band: 4
+  cost: [800000, 1600000]
+  tags: {relaxation: 80, family-friendly: 85, seniors: 80, coffee-country: 60}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: hotel
+    per_night: [800000, 1600000]
+    max_occupancy: 3
+    meals_included: false
+    amenities: [pool, restaurant, wifi, tennis, kids_play]
+
+- slug: stay-chikkamagaluru-town-guesthouse
+  name: Chikkamagaluru Town Guesthouse
+  region: chikkamagaluru-taluk
+  coords: [13.3161, 75.7720]
+  summary: A representative budget town guesthouse, walkable to the bus stand.
+  description: >-
+    A generic placeholder standing in for the cluster of budget lodges around
+    the town centre. Replace it with a specific verified property, or delete it
+    — it exists so the engine can build a genuinely low-budget itinerary during
+    development.
+  duration_minutes: null
+  cost_band: 1
+  cost: [120000, 250000]
+  tags: {relaxation: 40, solo: 80, family-friendly: 50}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: guesthouse
+    per_night: [120000, 250000]
+    max_occupancy: 3
+    meals_included: false
+    amenities: [wifi]
+
+# --- Mudigere and the western estates --------------------------------------
+
+- slug: stay-halli-berri
+  name: Halli Berri
+  region: mudigere
+  coords: [13.1500, 75.6167]
+  summary: A small, well-regarded estate homestay with a slow, quiet character.
+  duration_minutes: null
+  cost_band: 3
+  cost: [500000, 900000]
+  tags: {relaxation: 95, coffee-country: 85, couples: 85, offbeat: 70}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: homestay
+    per_night: [500000, 900000]
+    max_occupancy: 2
+    meals_included: true
+    amenities: [estate_walks, home_cooked_meals, library]
+
+- slug: stay-mudigere-estate-homestay
+  name: Mudigere Estate Homestay
+  region: mudigere
+  coords: [13.1333, 75.6333]
+  summary: A representative mid-range coffee estate homestay near Mudigere town.
+  description: >-
+    Placeholder for the dense cluster of estate homestays around Mudigere.
+    Replace with a verified property or delete before publishing.
+  duration_minutes: null
+  cost_band: 2
+  cost: [250000, 450000]
+  tags: {coffee-country: 80, relaxation: 75, family-friendly: 70, offbeat: 60}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: homestay
+    per_night: [250000, 450000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [estate_walks, home_cooked_meals]
+
+- slug: stay-charmadi-forest-homestay
+  name: Charmadi Forest Homestay
+  region: mudigere
+  coords: [13.0833, 75.4833]
+  summary: A basic homestay near the top of Charmadi Ghat, useful as a trek base.
+  description: Placeholder — verify or delete. Included so ghat-side treks have a nearby base.
+  duration_minutes: null
+  cost_band: 2
+  cost: [200000, 400000]
+  tags: {trekking: 75, offbeat: 85, nature: 80, solo: 70}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: homestay
+    per_night: [200000, 400000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [home_cooked_meals, trek_guide_arrangement]
+
+# --- Kemmangundi, Tarikere and Bhadra --------------------------------------
+
+- slug: stay-kemmangundi-guesthouse
+  name: Kemmangundi Horticultural Guesthouse
+  region: tarikere
+  coords: [13.5497, 75.7550]
+  summary: State horticulture department cottages on the Kemmangundi plateau.
+  description: >-
+    Government-run and inexpensive, and the only way to be on the plateau at
+    sunrise without a long pre-dawn drive. Verify the current booking route —
+    it has changed more than once.
+  duration_minutes: null
+  cost_band: 1
+  cost: [100000, 250000]
+  tags: {nature: 80, offbeat: 70, trekking: 65, family-friendly: 55}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: guesthouse
+    per_night: [100000, 250000]
+    max_occupancy: 4
+    meals_included: false
+    amenities: [canteen]
+
+- slug: stay-bhadra-river-lodge
+  name: Bhadra River Lodge, Lakkavalli
+  region: tarikere
+  coords: [13.7028, 75.6417]
+  summary: A reservoir-side lodge that is the usual base for Bhadra safaris.
+  description: >-
+    Jungle Lodges & Resorts operate a well-known property at Lakkavalli. Verify
+    the exact current name and tariff before publishing.
+  duration_minutes: null
+  cost_band: 4
+  cost: [700000, 1400000]
+  tags: {wildlife: 95, nature: 85, photography: 80, family-friendly: 70}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: resort
+    per_night: [700000, 1400000]
+    max_occupancy: 3
+    meals_included: true
+    amenities: [restaurant, safari_desk, boating, naturalist]
+
+- slug: stay-tarikere-transit-lodge
+  name: Tarikere Transit Lodge
+  region: tarikere
+  coords: [13.7000, 75.8167]
+  summary: A plain roadside lodge in Tarikere town, useful only as a transit stop.
+  description: Placeholder — verify or delete.
+  duration_minutes: null
+  cost_band: 1
+  cost: [90000, 180000]
+  tags: {solo: 60}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: hotel
+    per_night: [90000, 180000]
+    max_occupancy: 3
+    meals_included: false
+    amenities: []
+
+# --- Sringeri, Kalasa and Horanadu -----------------------------------------
+
+- slug: stay-sringeri-matha-lodging
+  name: Sringeri Matha Pilgrim Lodging
+  region: sringeri
+  coords: [13.4167, 75.2528]
+  summary: Simple pilgrim rooms run by the matha, minutes from the temple.
+  description: >-
+    The matha operates pilgrim accommodation and it is the natural choice for a
+    spiritual itinerary. Allocation rules and rates need verifying directly.
+  duration_minutes: null
+  cost_band: 1
+  cost: [50000, 200000]
+  tags: {spiritual: 95, seniors: 85, family-friendly: 75, relaxation: 50}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: guesthouse
+    per_night: [50000, 200000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [temple_meals]
+
+- slug: stay-sringeri-riverside-homestay
+  name: Sringeri Riverside Homestay
+  region: sringeri
+  coords: [13.4200, 75.2600]
+  summary: A representative homestay on the Tunga near Sringeri.
+  description: Placeholder — verify or delete.
+  duration_minutes: null
+  cost_band: 2
+  cost: [220000, 400000]
+  tags: {spiritual: 70, relaxation: 80, nature: 70, family-friendly: 70}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: homestay
+    per_night: [220000, 400000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [home_cooked_meals, river_access]
+
+- slug: stay-horanadu-temple-lodging
+  name: Horanadu Temple Lodging
+  region: kalasa
+  coords: [13.2333, 75.2333]
+  summary: Temple-run rooms at Horanadu, adequate and very cheap.
+  duration_minutes: null
+  cost_band: 1
+  cost: [50000, 150000]
+  tags: {spiritual: 95, seniors: 80, family-friendly: 75}
+  source: hand_compiled
+  confidence: 2
+  stay:
+    type: guesthouse
+    per_night: [50000, 150000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [temple_meals]
+
+- slug: stay-kalasa-estate-homestay
+  name: Kalasa Estate Homestay
+  region: kalasa
+  coords: [13.2333, 75.3667]
+  summary: A mid-range estate homestay near Kalasa, within reach of Kudremukh.
+  description: Placeholder — verify or delete. Included so Kudremukh treks have a nearby base.
+  duration_minutes: null
+  cost_band: 2
+  cost: [250000, 500000]
+  tags: {trekking: 80, coffee-country: 70, nature: 80, offbeat: 70}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: homestay
+    per_night: [250000, 500000]
+    max_occupancy: 4
+    meals_included: true
+    amenities: [home_cooked_meals, trek_guide_arrangement]
+
+- slug: stay-kemmangundi-campsite
+  name: Kemmangundi Ridge Campsite
+  region: tarikere
+  coords: [13.5450, 75.7500]
+  summary: Tented camping on the plateau, run seasonally by local operators.
+  description: Placeholder — verify operator and permissions before publishing.
+  duration_minutes: null
+  cost_band: 2
+  cost: [150000, 350000]
+  tags: {adventurous: 85, trekking: 75, nature: 85, solo: 70, photography: 75}
+  source: placeholder
+  confidence: 1
+  stay:
+    type: campsite
+    per_night: [150000, 350000]
+    max_occupancy: 2
+    meals_included: true
+    amenities: [tents, bonfire, meals]

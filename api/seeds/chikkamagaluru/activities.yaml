@@ -1,0 +1,327 @@
+# Activities — Chikkamagaluru district.
+#
+# ------------------------------------------------------------------------
+# DRAFT SEED SET — FACT-CHECK BEFORE USE.
+#
+# Verify in this order:
+#   1. requires_permit / requires_booking — getting this wrong sends a traveller
+#      to a closed forest gate, which is the worst failure this app can produce
+#   2. cost                                — operator pricing, changes yearly
+#   3. duration_minutes                    — the engine budgets days against it
+#   4. min_age / physical_intensity        — safety-relevant
+#
+# `operator_name` is left empty where I cannot name a specific operator with
+# confidence. Do not invent one.
+# ------------------------------------------------------------------------
+
+# --- treks -----------------------------------------------------------------
+
+- slug: act-mullayanagiri-sunrise-trek
+  name: Mullayanagiri sunrise climb
+  region: chikkamagaluru-taluk
+  coords: [13.3917, 75.7186]
+  summary: A pre-dawn drive and short stepped climb to catch sunrise from the state's highest point.
+  duration_minutes: 180
+  cost_band: 1
+  cost: [0, 50000]
+  difficulty: 2
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {trekking: 95, photography: 90, nature: 85, adventurous: 55}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: trek
+    physical_intensity: 2
+    min_age: 8
+    requires_guide: false
+    requires_booking: false
+
+- slug: act-baba-budangiri-ridge-walk
+  name: Baba Budangiri ridge walk
+  region: chikkamagaluru-taluk
+  coords: [13.4167, 75.7333]
+  summary: An easy walk along the open plateau between the shrine and the viewpoints.
+  duration_minutes: 150
+  cost_band: 1
+  cost: [0, 30000]
+  difficulty: 2
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {trekking: 80, spiritual: 60, nature: 80, photography: 75}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: trek
+    physical_intensity: 2
+    min_age: 8
+    requires_guide: false
+    requires_booking: false
+
+- slug: act-kudremukh-peak-trek
+  name: Kudremukh peak trek
+  region: kalasa
+  coords: [13.1361, 75.2639]
+  summary: A full-day 18 km return trek through shola forest and grassland to a 1,894 m summit.
+  description: >-
+    The district's hardest standard trek. A forest department permit and a
+    registered guide are both mandatory, entry is capped daily, and the gate
+    opens early — this cannot be done as a spontaneous afternoon outing.
+  duration_minutes: 540
+  cost_band: 3
+  cost: [80000, 200000]
+  difficulty: 5
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 100, adventurous: 95, nature: 90, photography: 80, offbeat: 70}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: trek
+    physical_intensity: 5
+    min_age: 14
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-ettina-bhuja-trek
+  name: Ettina Bhuja trek
+  region: mudigere
+  coords: [13.0500, 75.4333]
+  summary: A steep half-day climb to a rock shoulder above the Charmadi rainforest.
+  duration_minutes: 330
+  cost_band: 2
+  cost: [30000, 80000]
+  difficulty: 4
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 95, adventurous: 80, nature: 85, offbeat: 85}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: trek
+    physical_intensity: 4
+    min_age: 12
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-bandaje-ballalarayana-trek
+  name: Ballalarayana Durga to Bandaje trek
+  region: mudigere
+  coords: [13.2000, 75.5167]
+  summary: A long ridge traverse from a Hoysala hill fort to the top of Bandaje falls.
+  duration_minutes: 600
+  cost_band: 3
+  cost: [100000, 250000]
+  difficulty: 5
+  best_months: [10, 11, 12, 1, 2]
+  tags: {trekking: 100, adventurous: 90, nature: 90, heritage: 55, offbeat: 90}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: trek
+    physical_intensity: 5
+    min_age: 15
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-z-point-walk
+  name: Z Point walk
+  region: tarikere
+  coords: [13.5528, 75.7472]
+  summary: A gentle 45-minute walk from Kemmangundi to a dramatic ridge-end lookout.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 10000]
+  difficulty: 2
+  best_months: [9, 10, 11, 12, 1, 2, 3]
+  tags: {trekking: 70, nature: 85, photography: 90, family-friendly: 70}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: trek
+    physical_intensity: 2
+    min_age: 6
+    requires_guide: false
+    requires_booking: false
+
+# --- water and adrenaline ---------------------------------------------------
+
+- slug: act-bhadra-rafting
+  name: Bhadra river rafting
+  region: tarikere
+  coords: [13.7028, 75.6417]
+  summary: Grade I-II rafting on released water below the Bhadra dam.
+  description: >-
+    Runs only when water is being released, so it is genuinely seasonal and
+    cannot be promised in advance. Confirm the current operator and the release
+    schedule before publishing.
+  duration_minutes: 150
+  cost_band: 3
+  cost: [80000, 150000]
+  difficulty: 2
+  best_months: [7, 8, 9, 10, 11]
+  tags: {adventurous: 95, nature: 60, family-friendly: 55}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: rafting
+    physical_intensity: 3
+    min_age: 12
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-bhadra-coracle-boating
+  name: Bhadra backwater boating
+  region: tarikere
+  coords: [13.7000, 75.6400]
+  summary: A slow boat along the reservoir edge, often with elephants on the bank.
+  duration_minutes: 90
+  cost_band: 2
+  cost: [30000, 80000]
+  difficulty: 1
+  best_months: [10, 11, 12, 1, 2, 3, 4]
+  tags: {wildlife: 80, nature: 80, relaxation: 75, family-friendly: 85, photography: 75}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: kayaking
+    physical_intensity: 1
+    min_age: 5
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-bhadra-jeep-safari
+  name: Bhadra jeep safari
+  region: tarikere
+  coords: [13.7000, 75.6333]
+  summary: A forest department jeep safari into the Bhadra tiger reserve.
+  duration_minutes: 180
+  cost_band: 3
+  cost: [60000, 150000]
+  difficulty: 1
+  best_months: [10, 11, 12, 1, 2, 3, 4]
+  tags: {wildlife: 100, nature: 80, photography: 85, family-friendly: 75}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: safari
+    physical_intensity: 1
+    min_age: 5
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-hebbe-jeep-ride
+  name: Hebbe Falls jeep ride
+  region: tarikere
+  coords: [13.5722, 75.7278]
+  summary: A rough 9 km four-wheel-drive track through estates to the falls.
+  duration_minutes: 180
+  cost_band: 2
+  cost: [45000, 70000]
+  difficulty: 2
+  best_months: [8, 9, 10, 11, 12, 1]
+  tags: {adventurous: 80, nature: 90, photography: 70, family-friendly: 60}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: offroad
+    physical_intensity: 2
+    min_age: 6
+    requires_guide: true
+    requires_booking: false
+
+# --- estates, wildlife and slow days ---------------------------------------
+
+- slug: act-coffee-plantation-walk
+  name: Coffee plantation walk and tasting
+  region: chikkamagaluru-taluk
+  coords: [13.3000, 75.7500]
+  summary: A guided estate walk through the crop cycle, ending in a cupping session.
+  duration_minutes: 120
+  cost_band: 2
+  cost: [30000, 100000]
+  difficulty: 1
+  tags: {coffee-country: 100, relaxation: 80, heritage: 45, family-friendly: 70, seniors: 75}
+  source: hand_compiled
+  confidence: 3
+  activity:
+    type: coffee_tour
+    physical_intensity: 1
+    min_age: 5
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-birding-bhadra
+  name: Birding morning at Bhadra
+  region: tarikere
+  coords: [13.7050, 75.6350]
+  summary: An early walk along the reservoir fringe for hornbills and raptors.
+  duration_minutes: 180
+  cost_band: 2
+  cost: [40000, 100000]
+  difficulty: 2
+  best_months: [11, 12, 1, 2, 3]
+  tags: {wildlife: 90, nature: 85, photography: 85, offbeat: 60, solo: 70}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: birding
+    physical_intensity: 2
+    min_age: 10
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-charmadi-cycling
+  name: Charmadi Ghat cycling descent
+  region: mudigere
+  coords: [13.0667, 75.4833]
+  summary: A long hairpin descent through rainforest, with a support vehicle.
+  duration_minutes: 240
+  cost_band: 3
+  cost: [100000, 200000]
+  difficulty: 3
+  best_months: [10, 11, 12, 1, 2]
+  tags: {adventurous: 90, nature: 85, offbeat: 70, photography: 60}
+  source: hand_compiled
+  confidence: 1
+  activity:
+    type: cycling
+    physical_intensity: 4
+    min_age: 16
+    requires_guide: true
+    requires_booking: true
+
+- slug: act-sringeri-heritage-walk
+  name: Sringeri temple heritage walk
+  region: sringeri
+  coords: [13.4167, 75.2528]
+  summary: A guided walk through the matha complex and the Vidyashankara temple.
+  duration_minutes: 120
+  cost_band: 1
+  cost: [0, 50000]
+  difficulty: 1
+  tags: {spiritual: 90, heritage: 95, seniors: 85, family-friendly: 75}
+  source: hand_compiled
+  confidence: 2
+  activity:
+    type: workshop
+    physical_intensity: 1
+    min_age: 5
+    requires_guide: true
+    requires_booking: false
+
+- slug: act-kemmangundi-night-camp
+  name: Kemmangundi night camp
+  region: tarikere
+  coords: [13.5450, 75.7500]
+  summary: A tented night on the plateau, with a bonfire and a clear-sky sunrise.
+  duration_minutes: 240
+  cost_band: 2
+  cost: [150000, 350000]
+  difficulty: 2
+  best_months: [10, 11, 12, 1, 2, 3]
+  tags: {adventurous: 85, nature: 85, photography: 80, trekking: 55, couples: 70}
+  source: hand_compiled
+  confidence: 1
+  activity:
+    type: workshop
+    physical_intensity: 2
+    min_age: 10
+    requires_guide: true
+    requires_booking: true

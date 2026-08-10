@@ -6,8 +6,8 @@ ending up with different schemas, so it gets a test rather than a manual poke.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 
 import asyncpg
@@ -16,24 +16,7 @@ import pytest
 from tripplan.config import get_settings
 from tripplan.db import MigrationError, apply_migrations, discover_migrations
 
-
-class _RollbackError(Exception):
-    """Sentinel used to unwind a transaction without leaving rows behind."""
-
-
-@asynccontextmanager
-async def rolled_back(conn: asyncpg.Connection) -> AsyncIterator[None]:
-    """Run a block in a transaction that is always rolled back.
-
-    Lets a test insert real rows to exercise real constraints without polluting
-    the database for the next test. Java analogue: @Transactional @Rollback.
-    """
-    try:
-        async with conn.transaction():
-            yield
-            raise _RollbackError
-    except _RollbackError:
-        pass
+RolledBack = Callable[[asyncpg.Connection], AbstractAsyncContextManager[None]]
 
 
 @pytest.mark.integration
@@ -65,7 +48,9 @@ async def test_haversine_matches_known_distance(db: asyncpg.Connection) -> None:
 
 
 @pytest.mark.integration
-async def test_region_path_must_be_slash_delimited(db: asyncpg.Connection) -> None:
+async def test_region_path_must_be_slash_delimited(
+    db: asyncpg.Connection, rolled_back: RolledBack
+) -> None:
     """The path CHECK is what stops a prefix match straddling a name boundary."""
     async with rolled_back(db):
         with pytest.raises(asyncpg.IntegrityConstraintViolationError):
@@ -100,7 +85,9 @@ async def _make_two_pois(conn: asyncpg.Connection) -> tuple[str, str]:
 
 
 @pytest.mark.integration
-async def test_travel_estimates_allow_two_sources_per_pair(db: asyncpg.Connection) -> None:
+async def test_travel_estimates_allow_two_sources_per_pair(
+    db: asyncpg.Connection, rolled_back: RolledBack
+) -> None:
     """The Phase 3 seam: real and estimated ETAs must coexist for the same pair."""
     async with rolled_back(db):
         first, second = await _make_two_pois(db)
@@ -122,7 +109,9 @@ async def test_travel_estimates_allow_two_sources_per_pair(db: asyncpg.Connectio
 
 
 @pytest.mark.integration
-async def test_cost_range_cannot_be_inverted(db: asyncpg.Connection) -> None:
+async def test_cost_range_cannot_be_inverted(
+    db: asyncpg.Connection, rolled_back: RolledBack
+) -> None:
     """A max below a min would render as a nonsense price range in the UI."""
     async with rolled_back(db):
         region_id = await db.fetchval(

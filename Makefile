@@ -130,21 +130,25 @@ web-dev: ## Run the Next.js dev server on :3000
 
 # --- quality ---------------------------------------------------------------
 
+# The quality tools all read their config from api/pyproject.toml, and pytest
+# and mypy only discover it when the project directory is the working directory.
+# Run them from root and you get a silently unconfigured run: no asyncio_mode,
+# no --strict, unknown markers.
 test: ## Run all tests (integration tests skip if the DB is down)
-	$(UV) run pytest
+	cd api && uv run pytest
 
 test-unit: ## Run only tests that need no Docker
-	$(UV) run pytest -m "not integration"
+	cd api && uv run pytest -m "not integration"
 
 lint: ## Lint with ruff
-	$(UV) run ruff check api/src api/tests
+	cd api && uv run ruff check src tests
 
 fmt: ## Auto-format and auto-fix
-	$(UV) run ruff format api/src api/tests
-	$(UV) run ruff check --fix api/src api/tests
+	cd api && uv run ruff format src tests
+	cd api && uv run ruff check --fix src tests
 
 typecheck: ## Type-check with mypy --strict
-	$(UV) run mypy api/src api/tests
+	cd api && uv run mypy src tests
 
 check: lint typecheck test ## Everything CI runs
 

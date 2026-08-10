@@ -1,0 +1,108 @@
+# The shared taxonomy. One vocabulary, partitioned by `kind`.
+#
+# `interest` tags are the Phase 1 user-facing selection ("Plan by Interest").
+# `audience` and `season` tags are seeded now because they cost nothing and they
+# prove the partitioning works before Phase 5 needs `product_category` for the
+# marketplace. Nothing outside `interest` is exposed in the Phase 1 UI.
+#
+# display_order controls the order of the chips in the wizard.
+
+- slug: trekking
+  label: Trekking
+  kind: interest
+  display_order: 10
+  description: Peak climbs, ridge walks and forest trails.
+
+- slug: spiritual
+  label: Spiritual
+  kind: interest
+  display_order: 20
+  description: Temples, mathas and pilgrimage towns.
+
+- slug: adventurous
+  label: Adventurous
+  kind: interest
+  display_order: 30
+  description: Rafting, off-roading and high-adrenaline activities.
+
+- slug: nature
+  label: Nature & Waterfalls
+  kind: interest
+  display_order: 40
+  description: Waterfalls, valleys, viewpoints and scenic drives.
+
+- slug: wildlife
+  label: Wildlife
+  kind: interest
+  display_order: 50
+  description: Sanctuaries, safaris and birding hides.
+
+- slug: coffee-country
+  label: Coffee Country
+  kind: interest
+  display_order: 60
+  description: Working plantations, estate walks and cupping sessions.
+
+- slug: heritage
+  label: Heritage
+  kind: interest
+  display_order: 70
+  description: Temples of architectural note, forts and inscriptions.
+
+- slug: relaxation
+  label: Relaxation
+  kind: interest
+  display_order: 80
+  description: Slow stays, estate verandahs and short easy outings.
+
+- slug: photography
+  label: Photography
+  kind: interest
+  display_order: 90
+  description: Sunrise points, mist, and long-lens landscapes.
+
+- slug: offbeat
+  label: Offbeat
+  kind: interest
+  display_order: 100
+  description: Lesser-visited places that need a little effort to reach.
+
+# --- audience (not user-facing in Phase 1) ---------------------------------
+- slug: family-friendly
+  label: Family friendly
+  kind: audience
+  display_order: 10
+- slug: couples
+  label: Couples
+  kind: audience
+  display_order: 20
+- slug: solo
+  label: Solo
+  kind: audience
+  display_order: 30
+- slug: seniors
+  label: Seniors
+  kind: audience
+  display_order: 40
+
+# --- season (used by stage 1 alongside pois.best_months) -------------------
+- slug: monsoon
+  label: Monsoon
+  kind: season
+  display_order: 10
+  description: June to September; waterfalls at full flow, trails often closed.
+- slug: post-monsoon
+  label: Post-monsoon
+  kind: season
+  display_order: 20
+  description: October to November; the clearest views of the year.
+- slug: winter
+  label: Winter
+  kind: season
+  display_order: 30
+  description: December to February; peak season, cold mornings.
+- slug: summer
+  label: Summer
+  kind: season
+  display_order: 40
+  description: March to May; hot in the valleys, still pleasant on the ridges.

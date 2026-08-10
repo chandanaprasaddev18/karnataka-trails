@@ -1,0 +1,58 @@
+# Region hierarchy: state > district > taluk (> locality, unused in Phase 1).
+#
+# The loader derives `regions.path` from this nesting, so the YAML is the single
+# source of truth for ancestry and the DB column can never disagree with it.
+#
+# Slugs are GLOBALLY unique, which is why the taluk that shares its name with
+# the district is `chikkamagaluru-taluk`. Path segments use the slug, so a
+# prefix match on '/karnataka/chikkamagaluru/' correctly matches every taluk.
+#
+# Phase 1 seeds one district in full. Adding a second district is a YAML edit,
+# not a code change.
+
+- slug: karnataka
+  name: Karnataka
+  kind: state
+  centroid: [15.3173, 75.7139]
+  children:
+    - slug: chikkamagaluru
+      name: Chikkamagaluru
+      kind: district
+      centroid: [13.3161, 75.7720]
+      children:
+        - slug: chikkamagaluru-taluk
+          name: Chikkamagaluru
+          kind: taluk
+          centroid: [13.3161, 75.7720]
+        - slug: mudigere
+          name: Mudigere
+          kind: taluk
+          centroid: [13.1333, 75.6333]
+        - slug: sringeri
+          name: Sringeri
+          kind: taluk
+          centroid: [13.4167, 75.2500]
+        - slug: koppa
+          name: Koppa
+          kind: taluk
+          centroid: [13.5333, 75.3667]
+        - slug: narasimharajapura
+          name: Narasimharajapura
+          kind: taluk
+          centroid: [13.6167, 75.5000]
+        - slug: tarikere
+          name: Tarikere
+          kind: taluk
+          centroid: [13.7000, 75.8167]
+        - slug: kadur
+          name: Kadur
+          kind: taluk
+          centroid: [13.5500, 76.0167]
+        - slug: ajjampura
+          name: Ajjampura
+          kind: taluk
+          centroid: [13.7333, 75.9500]
+        - slug: kalasa
+          name: Kalasa
+          kind: taluk
+          centroid: [13.2333, 75.3667]

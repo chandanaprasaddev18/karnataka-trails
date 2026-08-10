@@ -15,6 +15,7 @@ import typer
 from tripplan.config import get_settings
 from tripplan.db import apply_migrations, connect
 from tripplan.observability.logging import configure_logging
+from tripplan.store.seed import load_interest_tags, load_regions
 
 app = typer.Typer(
     add_completion=False,
@@ -87,12 +88,26 @@ def db_info() -> None:
     asyncio.run(_run())
 
 
+@app.command("seed-taxonomy")
+def seed_taxonomy() -> None:
+    """Load interest tags and the region hierarchy (idempotent)."""
+
+    async def _run() -> None:
+        cfg = get_settings()
+        async with connect(cfg) as conn:
+            tags = await load_interest_tags(conn, cfg.seeds_dir)
+            regions = await load_regions(conn, cfg.seeds_dir)
+        typer.echo(f"upserted {tags} interest tag(s) and {regions} region(s)")
+
+    asyncio.run(_run())
+
+
 @app.command("config-show")
 def config_show() -> None:
     """Print the effective configuration with secrets masked."""
     cfg = get_settings()
     payload = json.loads(cfg.model_dump_json())
-    payload["db"]["password"] = "***"
+    payload["db"]["password"] = "***"  # noqa: S105 — masking, not a credential
     payload["llm"]["api_key"] = "***" if cfg.llm.api_key.get_secret_value() else ""
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
 

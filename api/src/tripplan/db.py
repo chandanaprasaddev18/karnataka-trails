@@ -15,6 +15,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import asyncpg
 
@@ -22,6 +23,18 @@ from tripplan.config import Settings, get_settings
 from tripplan.observability.logging import get_logger
 
 log = get_logger(__name__)
+
+# A connection from either source. `pool.acquire()` yields a PoolConnectionProxy,
+# not a Connection, and the two are distinct to the type checker even though they
+# are interchangeable at runtime. Every function that takes "a connection" should
+# accept both, or callers end up sprinkling casts at each acquire site.
+#
+# Split by TYPE_CHECKING because asyncpg's classes are only generic in the stubs:
+# subscripting them at runtime raises TypeError.
+if TYPE_CHECKING:
+    DbConn = asyncpg.Connection[asyncpg.Record] | asyncpg.pool.PoolConnectionProxy[asyncpg.Record]
+else:
+    DbConn = asyncpg.Connection
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (

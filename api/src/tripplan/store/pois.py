@@ -26,6 +26,7 @@ from uuid import UUID
 
 import asyncpg
 
+from tripplan.db import DbConn
 from tripplan.domain.models import (
     Candidate,
     CandidateSet,
@@ -70,13 +71,13 @@ _ALIAS: dict[PoiKind, str] = {"place": "pd", "stay": "sd", "activity": "ad"}
 _REF_PREFIX: dict[PoiKind, str] = {"place": "P", "stay": "S", "activity": "A"}
 
 
-async def district_path(conn: asyncpg.Connection, slug: str) -> str | None:
+async def district_path(conn: DbConn, slug: str) -> str | None:
     value = await conn.fetchval("SELECT path FROM regions WHERE slug = $1", slug)
     return str(value) if value is not None else None
 
 
 async def fetch_candidates(
-    conn: asyncpg.Connection,
+    conn: DbConn,
     brief: TripBrief,
     kind: PoiKind,
     limit: int,
@@ -214,7 +215,7 @@ def _detail_dict(kind: PoiKind, row: asyncpg.Record) -> dict[str, Any]:
     return {k: row[k] for k in keys if row[k] is not None}
 
 
-async def _guides_for(conn: asyncpg.Connection, poi_ids: list[UUID]) -> dict[UUID, list[GuideRef]]:
+async def _guides_for(conn: DbConn, poi_ids: list[UUID]) -> dict[UUID, list[GuideRef]]:
     """Published guides attached to these POIs, keyed by POI.
 
     Only published guides: an unverified placeholder must never be presented to
@@ -247,7 +248,7 @@ async def _guides_for(conn: asyncpg.Connection, poi_ids: list[UUID]) -> dict[UUI
 
 
 async def retrieve(
-    conn: asyncpg.Connection,
+    conn: DbConn,
     brief: TripBrief,
     *,
     max_places: int,
@@ -272,7 +273,7 @@ async def retrieve(
     return candidates
 
 
-async def interest_labels(conn: asyncpg.Connection, slugs: tuple[str, ...]) -> list[dict[str, str]]:
+async def interest_labels(conn: DbConn, slugs: tuple[str, ...]) -> list[dict[str, str]]:
     rows = await conn.fetch(
         """
         SELECT slug, label FROM interest_tags
@@ -284,7 +285,7 @@ async def interest_labels(conn: asyncpg.Connection, slugs: tuple[str, ...]) -> l
     return [{"slug": str(r["slug"]), "label": str(r["label"])} for r in rows]
 
 
-async def region_ref(conn: asyncpg.Connection, slug: str) -> RegionRef | None:
+async def region_ref(conn: DbConn, slug: str) -> RegionRef | None:
     row = await conn.fetchrow("SELECT slug, name FROM regions WHERE slug = $1", slug)
     if row is None:
         return None

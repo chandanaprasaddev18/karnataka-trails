@@ -44,6 +44,9 @@ dev = [
     # they catch actual driver misuse under --strict.
     "asyncpg-stubs>=0.30",
     "types-pyyaml>=6.0",
+    # Drives the FastAPI app in-process over ASGI, with the lifespan running so
+    # the real connection pool is exercised.
+    "asgi-lifespan>=2.1",
 ]
 
 [build-system]

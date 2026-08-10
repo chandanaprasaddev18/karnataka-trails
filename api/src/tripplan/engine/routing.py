@@ -24,8 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-import asyncpg
-
+from tripplan.db import DbConn
 from tripplan.domain.models import (
     Candidate,
     CandidateSet,
@@ -236,12 +235,12 @@ def _source_of(items: list[RoutedItem]) -> TravelSource:
 
 
 async def load_cached_legs(
-    conn: asyncpg.Connection, candidates: CandidateSet
+    conn: DbConn, candidates: CandidateSet
 ) -> dict[tuple[UUID, UUID], TravelLeg]:
     return await travel_store.load_legs(conn, [c.poi_id for c in candidates.all()])
 
 
-async def persist_computed_legs(conn: asyncpg.Connection, resolver: LegResolver) -> int:
+async def persist_computed_legs(conn: DbConn, resolver: LegResolver) -> int:
     for from_poi, to_poi, leg in resolver.computed:
         await travel_store.save_leg(conn, from_poi, to_poi, leg)
     return len(resolver.computed)

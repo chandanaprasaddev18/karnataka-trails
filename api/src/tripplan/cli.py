@@ -16,6 +16,7 @@ from tripplan.config import get_settings
 from tripplan.db import apply_migrations, connect
 from tripplan.engine.brief import BriefError, build_brief
 from tripplan.engine.pipeline import EngineError, generate
+from tripplan.jobs.worker import run_once, run_worker
 from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging
 from tripplan.render import render_text
@@ -225,6 +226,24 @@ def plan(
             typer.echo(render_text(result.itinerary))
         if result.fallback_reason:
             typer.secho(f"\nfell back: {result.fallback_reason}", fg=typer.colors.YELLOW, err=True)
+
+    asyncio.run(_run())
+
+
+@app.command()
+def worker(
+    once: bool = typer.Option(
+        False, "--once", help="Claim and run a single job, then exit. Useful in CI."
+    ),
+) -> None:
+    """Run the itinerary job worker."""
+
+    async def _run() -> None:
+        if once:
+            job_id = await run_once()
+            typer.echo(f"ran job {job_id}" if job_id else "queue empty")
+        else:
+            await run_worker()
 
     asyncio.run(_run())
 

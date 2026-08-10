@@ -201,9 +201,7 @@ def test_parse_rejects_unexpected_fields() -> None:
 
 def test_extracts_tool_call_arguments_as_string() -> None:
     data = {
-        "choices": [
-            {"message": {"tool_calls": [{"function": {"arguments": json.dumps(_VALID)}}]}}
-        ]
+        "choices": [{"message": {"tool_calls": [{"function": {"arguments": json.dumps(_VALID)}}]}}]
     }
     assert _extract_tool_arguments(data) is not None
 

@@ -5,15 +5,14 @@ from __future__ import annotations
 import json
 from uuid import UUID
 
-import asyncpg
-
-from tripplan.domain.models import Itinerary, TripBrief
+from tripplan.db import DbConn
+from tripplan.domain.models import Itinerary, OriginRef, TripBrief
 from tripplan.observability.logging import get_logger
 
 log = get_logger(__name__)
 
 
-async def create_request(conn: asyncpg.Connection, brief: TripBrief, *, session_token: str) -> UUID:
+async def create_request(conn: DbConn, brief: TripBrief, *, session_token: str) -> UUID:
     """Persist the brief as an immutable trip_requests row."""
     region_id = await conn.fetchval("SELECT id FROM regions WHERE slug = $1", brief.district_slug)
     tag_ids = [
@@ -27,8 +26,8 @@ async def create_request(conn: asyncpg.Connection, brief: TripBrief, *, session_
         """
         INSERT INTO trip_requests (
             session_token, mode, tag_ids, region_id, days, party_size, budget_band,
-            origin_label, origin_lat, origin_lon
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            origin_label, origin_lat, origin_lon, travel_month
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         RETURNING id
         """,
         session_token,
@@ -41,11 +40,12 @@ async def create_request(conn: asyncpg.Connection, brief: TripBrief, *, session_
         brief.origin.label,
         brief.origin.lat,
         brief.origin.lon,
+        brief.travel_month,
     )
     return UUID(str(request_id))
 
 
-async def save_itinerary(conn: asyncpg.Connection, itinerary: Itinerary) -> UUID:
+async def save_itinerary(conn: DbConn, itinerary: Itinerary) -> UUID:
     """Persist an itinerary and its POI audit trail.
 
     `itinerary_pois` is written alongside the jsonb payload so that "every
@@ -104,7 +104,7 @@ async def save_itinerary(conn: asyncpg.Connection, itinerary: Itinerary) -> UUID
 
 
 async def latest_for_request(
-    conn: asyncpg.Connection, request_id: UUID
+    conn: DbConn, request_id: UUID
 ) -> tuple[UUID, dict[str, object]] | None:
     row = await conn.fetchrow(
         """
@@ -116,3 +116,53 @@ async def latest_for_request(
     if row is None:
         return None
     return UUID(str(row["id"])), dict(row["payload"])
+
+
+async def load_brief(conn: DbConn, request_id: UUID) -> TripBrief | None:
+    """Rebuild the brief from a persisted request.
+
+    The worker runs in a different process from the API, so it reconstructs the
+    brief from the database rather than receiving it. `trip_requests` is the
+    immutable record of what was asked, which makes a job replayable: re-running
+    it produces the same brief even if the taxonomy or seed data has since moved.
+    """
+    row = await conn.fetchrow(
+        """
+        SELECT tr.mode, tr.tag_ids, tr.days, tr.party_size, tr.budget_band,
+               tr.origin_label, tr.origin_lat, tr.origin_lon, tr.created_at,
+               tr.travel_month, r.slug AS district_slug
+        FROM trip_requests tr
+        LEFT JOIN regions r ON r.id = tr.region_id
+        WHERE tr.id = $1
+        """,
+        request_id,
+    )
+    if row is None:
+        return None
+
+    tag_slugs = [
+        str(r["slug"])
+        for r in await conn.fetch(
+            "SELECT slug FROM interest_tags WHERE id = ANY($1::smallint[]) ORDER BY display_order",
+            list(row["tag_ids"] or []),
+        )
+    ]
+
+    return TripBrief(
+        request_id=request_id,
+        mode=row["mode"],
+        tag_slugs=tuple(tag_slugs),
+        district_slug=str(row["district_slug"] or ""),
+        days=int(row["days"]),
+        party_size=int(row["party_size"]),
+        budget_band=int(row["budget_band"]),
+        origin=OriginRef(
+            label=str(row["origin_label"]),
+            lat=float(row["origin_lat"]),
+            lon=float(row["origin_lon"]),
+        ),
+        # The month the user intends to travel, which drives the seasonal filter.
+        # NULL only for requests predating migration 003, where creation month is
+        # genuinely the best available guess.
+        travel_month=int(row["travel_month"] or row["created_at"].month),
+    )

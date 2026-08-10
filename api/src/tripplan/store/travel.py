@@ -11,15 +11,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-import asyncpg
-
+from tripplan.db import DbConn
 from tripplan.domain.models import TravelLeg
 from tripplan.domain.taxonomy import TRAVEL_SOURCE_PREFERENCE, TravelSource
 
 PoiPair = tuple[UUID, UUID]
 
 
-async def load_legs(conn: asyncpg.Connection, poi_ids: list[UUID]) -> dict[PoiPair, TravelLeg]:
+async def load_legs(conn: DbConn, poi_ids: list[UUID]) -> dict[PoiPair, TravelLeg]:
     """Best cached leg for every pair among `poi_ids`, honouring the source preference.
 
     Fetches by endpoint membership rather than by explicit pair list: a candidate
@@ -57,7 +56,7 @@ async def load_legs(conn: asyncpg.Connection, poi_ids: list[UUID]) -> dict[PoiPa
     return {key: leg for key, (_, leg) in ranked.items()}
 
 
-async def save_leg(conn: asyncpg.Connection, from_poi: UUID, to_poi: UUID, leg: TravelLeg) -> None:
+async def save_leg(conn: DbConn, from_poi: UUID, to_poi: UUID, leg: TravelLeg) -> None:
     """Memoise a computed leg. A self-pair is skipped (the CHECK forbids it)."""
     if from_poi == to_poi:
         return

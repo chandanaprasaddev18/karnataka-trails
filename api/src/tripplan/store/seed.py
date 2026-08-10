@@ -15,10 +15,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import asyncpg
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from tripplan.db import DbConn
 from tripplan.domain.taxonomy import (
     ActivityType,
     PlaceType,
@@ -84,7 +84,7 @@ def _read_yaml_list(path: Path) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-async def load_interest_tags(conn: asyncpg.Connection, seeds_dir: Path) -> int:
+async def load_interest_tags(conn: DbConn, seeds_dir: Path) -> int:
     """Upsert the tag vocabulary. Returns the number of rows written."""
     path = seeds_dir / "interest_tags.yaml"
     tags = [TagSeed.model_validate(row) for row in _read_yaml_list(path)]
@@ -123,7 +123,7 @@ async def load_interest_tags(conn: asyncpg.Connection, seeds_dir: Path) -> int:
 # ---------------------------------------------------------------------------
 
 
-async def load_regions(conn: asyncpg.Connection, seeds_dir: Path) -> int:
+async def load_regions(conn: DbConn, seeds_dir: Path) -> int:
     """Upsert the region hierarchy, deriving `path` from the YAML nesting.
 
     Deriving rather than declaring the path is deliberate: the nesting in the
@@ -288,12 +288,12 @@ class GuideSeed(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-async def _tag_ids(conn: asyncpg.Connection) -> dict[str, int]:
+async def _tag_ids(conn: DbConn) -> dict[str, int]:
     rows = await conn.fetch("SELECT slug, id FROM interest_tags")
     return {str(r["slug"]): int(r["id"]) for r in rows}
 
 
-async def _region_ids(conn: asyncpg.Connection) -> dict[str, int]:
+async def _region_ids(conn: DbConn) -> dict[str, int]:
     rows = await conn.fetch("SELECT slug, id FROM regions")
     return {str(r["slug"]): int(r["id"]) for r in rows}
 
@@ -338,7 +338,7 @@ class SeedReport(BaseModel):
         return "\n".join(lines)
 
 
-async def load_pois(conn: asyncpg.Connection, seeds_dir: Path, district: str) -> SeedReport:
+async def load_pois(conn: DbConn, seeds_dir: Path, district: str) -> SeedReport:
     """Load places, stays and activities for one district.
 
     Rows land as ``status='draft'``. Promotion is a separate, deliberate act
@@ -462,7 +462,7 @@ async def load_pois(conn: asyncpg.Connection, seeds_dir: Path, district: str) ->
 
 
 async def _write_detail(
-    conn: asyncpg.Connection,
+    conn: DbConn,
     kind: PoiKind,
     poi_id: Any,
     detail: PlaceDetailSeed | StayDetailSeed | ActivityDetailSeed,
@@ -547,7 +547,7 @@ async def _write_detail(
 # ---------------------------------------------------------------------------
 
 
-async def load_guides(conn: asyncpg.Connection, seeds_dir: Path, district: str) -> int:
+async def load_guides(conn: DbConn, seeds_dir: Path, district: str) -> int:
     """Load guides and their POI links. Returns the number of guides written."""
     path = seeds_dir / district / "guides.yaml"
     guides = [GuideSeed.model_validate(r) for r in _read_yaml_list(path)]
@@ -662,7 +662,7 @@ class PublishReport(BaseModel):
 
 
 async def publish(
-    conn: asyncpg.Connection,
+    conn: DbConn,
     *,
     min_confidence: int = 2,
     include_placeholders: bool = False,

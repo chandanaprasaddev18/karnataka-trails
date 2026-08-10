@@ -198,25 +198,70 @@ async def test_full_async_round_trip(
 
 
 @pytest.mark.integration
-async def test_an_unplannable_request_fails_the_job_not_the_api(
-    client: httpx.AsyncClient, seeded: asyncpg.Connection, settings: Settings
+async def test_an_impossible_brief_is_refused_immediately_with_alternatives(
+    client: httpx.AsyncClient,
 ) -> None:
-    """A valid request with no possible itinerary must report a failed job clearly."""
-    await seeded.execute("DELETE FROM itinerary_jobs")
+    """Trekking in monsoon is a real-world constraint, not a server error.
 
-    body = dict(_VALID_BODY, interests=["wildlife"], budget_band=1)
-    request_id = (await client.post("/api/plan", json=body)).json()["request_id"]
+    It used to be accepted, enqueued, and failed 30 seconds later with a message
+    blaming unpublished seed data. Now it is refused at the door, names the
+    season as the cause, and offers months and interests that would work — so the
+    dead end becomes a redirect.
+    """
+    body = dict(_VALID_BODY, interests=["trekking"], travel_month=8, budget_band=4)
+    response = await client.post("/api/plan", json=body)
 
-    job = await queue.claim(seeded, "test-worker")
-    assert job is not None
-    worker = Worker(settings)
-    await worker.run_job(seeded, job, build_composer(settings))
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["reason"] == "out_of_season"
+    assert "monsoon" in detail["message"]
+    # Trekking is open October to March in this district.
+    assert 11 in detail["suggested_months"]
+    assert 8 not in detail["suggested_months"]
+    # And something else is worth doing in August.
+    slugs = {i["slug"] for i in detail["suggested_interests"]}
+    assert "spiritual" in slugs
+    assert "trekking" not in slugs
 
-    status = (await client.get(f"/api/plan/{request_id}")).json()
-    assert status["job"]["status"] == "failed"
-    assert status["job"]["error_code"] == "engine_error"
-    assert "no published places" in status["job"]["error_detail"]
-    # An engine error is parked immediately — retrying yields the same answer.
-    # `attempts` stays at its true value (1); inflating it would misreport history.
-    assert status["job"]["attempts"] == 1
-    assert await queue.claim(seeded, "test-worker") is None, "must not be re-queued"
+
+@pytest.mark.integration
+async def test_a_single_out_of_season_interest_behaves_like_several(
+    client: httpx.AsyncClient,
+) -> None:
+    """The bug this fixed: one interest hard-failed where two degraded gracefully.
+
+    Asking for trekking + spiritual in August succeeds with an `interest_unmet`
+    warning. Asking for trekking alone used to be a hard failure. Both are now
+    coherent: the multi-interest case still plans, the single-interest case is
+    refused with the same explanation rather than an opaque error.
+    """
+    august = dict(_VALID_BODY, travel_month=8, budget_band=4)
+
+    both = await client.post("/api/plan", json=dict(august, interests=["trekking", "spiritual"]))
+    assert both.status_code == 202, "a servable interest alongside an unservable one still plans"
+
+    alone = await client.post("/api/plan", json=dict(august, interests=["trekking"]))
+    assert alone.status_code == 422
+    assert alone.json()["detail"]["reason"] == "out_of_season"
+
+
+@pytest.mark.integration
+async def test_too_low_a_budget_is_reported_as_budget_not_season(
+    client: httpx.AsyncClient,
+) -> None:
+    """Blaming the wrong constraint sends the user to fix the wrong control."""
+    body = dict(_VALID_BODY, interests=["wildlife"], travel_month=11, budget_band=1)
+    response = await client.post("/api/plan", json=body)
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["reason"] == "budget_too_low"
+    assert detail["min_budget_band"] is not None
+    assert "budget" in detail["message"]
+
+
+@pytest.mark.integration
+async def test_a_feasible_brief_is_still_accepted(client: httpx.AsyncClient) -> None:
+    """The pre-flight must not become an over-eager gate on valid requests."""
+    body = dict(_VALID_BODY, interests=["trekking"], travel_month=11, budget_band=4)
+    assert (await client.post("/api/plan", json=body)).status_code == 202

@@ -75,6 +75,14 @@ covered by a test in `api/tests/test_engine.py`.
 - **Stays are retrieved WITHOUT an interest-tag match.** You need a bed near the
   day's cluster whether or not the property is tagged `trekking`. Requiring a
   match produces itineraries with nowhere to sleep.
+- **The seasonal filter is a hard exclusion, not a ranking signal.** Kudremukh in
+  peak monsoon is a safety question, so an out-of-season POI is removed rather
+  than down-ranked. What used to be wrong was the *failure mode*, not the filter:
+  see `store/pois.py::feasibility`.
+- **Feasibility is checked at POST time, and again in the engine.** The API
+  refuses an impossible brief immediately with alternatives; the engine keeps its
+  own guard for data that changes between accept and run. Both use the same
+  diagnosis so they cannot disagree.
 - **Published ≠ verified.** `publish` promotes rows but leaves `verified_at`
   NULL, so "published but never checked" stays queryable, and the itinerary
   raises an `unverified_data` warning while it is true.

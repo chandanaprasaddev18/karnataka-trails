@@ -74,12 +74,11 @@ async def generate(
         max_activities=settings.retrieval.max_activities,
     )
     if candidates.is_empty():
-        raise EngineError(
-            "no published places or activities matched this brief "
-            f"(district={brief.district_slug}, interests={list(brief.tag_slugs)}, "
-            f"budget_band={brief.budget_band}, month={brief.travel_month}). "
-            "Widen the interests or check that seed data has been published."
-        )
+        # Reuse the same diagnosis the API pre-flight uses, so a job that fails
+        # here explains itself in the caller's terms rather than blaming seed
+        # data that is, in almost every case, published and fine.
+        verdict = await poi_store.feasibility(conn, brief)
+        raise EngineError(verdict.explain())
 
     district = await poi_store.region_ref(conn, brief.district_slug)
     if district is None:

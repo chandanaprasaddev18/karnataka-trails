@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, MONTHS, ORIGINS, createPlan, fetchInterests } from "@/lib/api";
+import {
+  ApiError,
+  InfeasibleError,
+  MONTHS,
+  ORIGINS,
+  createPlan,
+  fetchInterests,
+} from "@/lib/api";
 import { budgetLabel } from "@/lib/format";
-import type { Interest } from "@/lib/types";
+import type { Infeasible, Interest } from "@/lib/types";
 
 /**
  * The three-step wizard: interests, then trip shape, then submit.
@@ -26,6 +33,9 @@ export function Wizard() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Held apart from `submitError` because an impossible brief is not a failure
+  // to apologise for — it comes with alternatives the user can take in one click.
+  const [infeasible, setInfeasible] = useState<Infeasible | null>(null);
 
   useEffect(() => {
     fetchInterests()
@@ -48,6 +58,7 @@ export function Wizard() {
   async function submit() {
     setSubmitting(true);
     setSubmitError(null);
+    setInfeasible(null);
     try {
       const accepted = await createPlan({
         interests: selected,
@@ -60,7 +71,11 @@ export function Wizard() {
       // Generation is async; the itinerary page polls from here.
       router.push(`/itinerary/${accepted.request_id}`);
     } catch (error: unknown) {
-      setSubmitError(error instanceof Error ? error.message : "Something went wrong.");
+      if (error instanceof InfeasibleError) {
+        setInfeasible(error.detail);
+      } else {
+        setSubmitError(error instanceof Error ? error.message : "Something went wrong.");
+      }
       setSubmitting(false);
     }
   }
@@ -162,6 +177,24 @@ export function Wizard() {
         </Field>
       </div>
 
+      {infeasible && (
+        <NoMatches
+          detail={infeasible}
+          onPickMonth={(m) => {
+            setMonth(m);
+            setInfeasible(null);
+          }}
+          onPickInterest={(slug) => {
+            setSelected([slug]);
+            setInfeasible(null);
+          }}
+          onRaiseBudget={(band) => {
+            setBudget(band);
+            setInfeasible(null);
+          }}
+        />
+      )}
+
       {submitError && (
         <div className="rounded-lg border border-clay/30 bg-clay-soft p-3 text-sm text-clay">
           {submitError}
@@ -182,6 +215,84 @@ export function Wizard() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Shown when a brief is valid but cannot be planned.
+ *
+ * The server already worked out what WOULD work, so this offers those as one
+ * click instead of telling the reader to go and guess. Nothing here overrides the
+ * seasonal filter — putting someone on a monsoon trek is the failure this is
+ * deliberately keeping.
+ */
+function NoMatches({
+  detail,
+  onPickMonth,
+  onPickInterest,
+  onRaiseBudget,
+}: {
+  detail: Infeasible;
+  onPickMonth: (month: number) => void;
+  onPickInterest: (slug: string) => void;
+  onRaiseBudget: (band: number) => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-clay/30 bg-clay-soft p-5">
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold text-clay">Nothing matches that yet</h2>
+        <p className="text-sm text-ink/80">{detail.message}</p>
+      </div>
+
+      {detail.suggested_months.length > 0 && (
+        <Suggestions title="Try a different month">
+          {detail.suggested_months.map((month) => (
+            <Chip key={month} onClick={() => onPickMonth(month)}>
+              {MONTHS[month - 1]}
+            </Chip>
+          ))}
+        </Suggestions>
+      )}
+
+      {detail.suggested_interests.length > 0 && (
+        <Suggestions title={`Or something good in ${MONTHS[detail.asked_month - 1]}`}>
+          {detail.suggested_interests.map((interest) => (
+            <Chip key={interest.slug} onClick={() => onPickInterest(interest.slug)}>
+              {interest.label}
+            </Chip>
+          ))}
+        </Suggestions>
+      )}
+
+      {detail.min_budget_band !== null && (
+        <Suggestions title="Or spend a little more">
+          <Chip onClick={() => onRaiseBudget(detail.min_budget_band as number)}>
+            Raise budget to {budgetLabel(detail.min_budget_band)}
+          </Chip>
+        </Suggestions>
+      )}
+    </div>
+  );
+}
+
+function Suggestions({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Chip({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full border border-moss/40 bg-card px-3 py-1 text-sm text-moss transition hover:bg-moss hover:text-white"
+    >
+      {children}
+    </button>
   );
 }
 

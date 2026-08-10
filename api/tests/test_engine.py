@@ -360,7 +360,12 @@ async def test_unmet_interest_is_reported_not_hidden(
 async def test_engine_refuses_when_nothing_matches(
     seeded: asyncpg.Connection, settings: Settings
 ) -> None:
-    """A brief with no candidates must fail loudly, not return an empty itinerary."""
+    """A brief with no candidates must fail loudly, not return an empty itinerary.
+
+    The API pre-checks feasibility, so this path is the safety net for data that
+    changes between the request being accepted and the worker running it. The
+    message must diagnose the real blocker rather than blaming the seed data.
+    """
     brief = build_brief(
         interests=["wildlife"],
         district_slug=DISTRICT,
@@ -370,5 +375,23 @@ async def test_engine_refuses_when_nothing_matches(
         origin_label="Bengaluru",
         travel_month=PEAK_MONTH,
     )
-    with pytest.raises(EngineError, match="no published places"):
+    with pytest.raises(EngineError, match="above your budget"):
+        await generate(seeded, brief, settings)
+
+
+@pytest.mark.integration
+async def test_out_of_season_failure_names_the_season(
+    seeded: asyncpg.Connection, settings: Settings
+) -> None:
+    """Trekking in monsoon must say so, not blame unpublished data."""
+    brief = build_brief(
+        interests=["trekking"],
+        district_slug=DISTRICT,
+        days=3,
+        party_size=2,
+        budget_band=4,
+        origin_label="Bengaluru",
+        travel_month=8,  # August — trails shut
+    )
+    with pytest.raises(EngineError, match="monsoon"):
         await generate(seeded, brief, settings)

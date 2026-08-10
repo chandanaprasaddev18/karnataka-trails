@@ -92,6 +92,13 @@ async def test_two_workers_never_claim_the_same_job(
     await _enqueue(seeded)
     await _enqueue(seeded)
 
+    # State the precondition explicitly: the assertions below only mean anything
+    # if there are two claimable jobs at this instant. Nothing else in the suite
+    # should be consuming them, and if that changes this fails with the reason
+    # rather than as a confusing "job_b is None".
+    queued = await seeded.fetchval("SELECT count(*) FROM itinerary_jobs WHERE status = 'queued'")
+    assert queued == 2, f"expected 2 claimable jobs, found {queued}"
+
     conn_a = await asyncpg.connect(dsn=settings.db.dsn())
     conn_b = await asyncpg.connect(dsn=settings.db.dsn())
     try:
@@ -107,8 +114,11 @@ async def test_two_workers_never_claim_the_same_job(
         await tx_a.commit()
         await tx_b.commit()
 
-        assert job_a is not None
-        assert job_b is not None
+        assert job_a is not None, "worker A should have claimed one of the two jobs"
+        assert job_b is not None, (
+            "worker B got nothing while A held a lock — SKIP LOCKED should have "
+            "handed it the other queued job instead of skipping to empty"
+        )
         assert job_a.job_id != job_b.job_id, "SKIP LOCKED must hand out distinct jobs"
     finally:
         await conn_a.close()

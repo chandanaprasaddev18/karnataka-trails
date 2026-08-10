@@ -135,6 +135,22 @@ export interface Itinerary {
   } | null;
 }
 
+/**
+ * The structured body of a 422 from POST /api/plan.
+ *
+ * A brief can be perfectly valid and still impossible — trekking in monsoon.
+ * The server says which constraint blocked it and what would work instead, so
+ * the UI can offer a fix rather than a dead end.
+ */
+export interface Infeasible {
+  message: string;
+  reason: "out_of_season" | "budget_too_low" | "nothing_tagged" | "no_data";
+  asked_month: number;
+  suggested_months: number[];
+  suggested_interests: { slug: string; label: string }[];
+  min_budget_band: number | null;
+}
+
 export interface Interest {
   slug: string;
   label: string;

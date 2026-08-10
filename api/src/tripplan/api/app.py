@@ -34,6 +34,7 @@ from tripplan.engine.brief import BriefError, build_brief
 from tripplan.jobs import queue
 from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging, get_logger
+from tripplan.store import pois as poi_store
 from tripplan.store.itineraries import create_request, latest_for_request
 
 log = get_logger(__name__)
@@ -179,6 +180,23 @@ async def create_plan(
         # A bad origin or an empty interest list is the caller's problem, and it
         # must surface here rather than as a job that fails 30 seconds later.
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+    # Pre-flight: a brief that cannot possibly be planned should be answered now,
+    # with alternatives, rather than enqueued so it can fail 30 seconds later.
+    # The engine keeps its own guard for the case where data changes in between.
+    verdict = await poi_store.feasibility(conn, brief)
+    if not verdict.ok:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "message": verdict.explain(),
+                "reason": verdict.reason,
+                "asked_month": verdict.asked_month,
+                "suggested_months": verdict.suggested_months,
+                "suggested_interests": verdict.suggested_interests,
+                "min_budget_band": verdict.min_budget_band,
+            },
+        )
 
     session_token = x_session_token or secrets.token_urlsafe(24)
 

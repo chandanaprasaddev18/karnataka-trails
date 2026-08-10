@@ -21,10 +21,11 @@ Two deliberate asymmetries:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import asyncpg
+from pydantic import BaseModel, Field
 
 from tripplan.db import DbConn
 from tripplan.domain.models import (
@@ -290,3 +291,213 @@ async def region_ref(conn: DbConn, slug: str) -> RegionRef | None:
     if row is None:
         return None
     return RegionRef(slug=str(row["slug"]), name=str(row["name"]))
+
+
+# ---------------------------------------------------------------------------
+# Feasibility — can this brief produce anything at all?
+# ---------------------------------------------------------------------------
+# Retrieval's filters are correct but unforgiving: a trekking trip in August
+# legitimately matches nothing, because the trails are shut. Discovering that as
+# a failed job is a bad experience and a worse diagnostic — the old message even
+# blamed unpublished seed data, which sent the reader to the wrong place.
+#
+# This runs the same filters as `fetch_candidates`, then relaxes them one at a
+# time to work out WHICH constraint is the blocker, and what would work instead.
+# The answer is a cheap set of counts, so it happens at request time and the
+# caller gets it immediately rather than after a round trip through the queue.
+
+
+class Feasibility(BaseModel):
+    """Whether a brief can be planned, and if not, what would work."""
+
+    ok: bool
+    reason: Literal["ok", "out_of_season", "budget_too_low", "nothing_tagged", "no_data"] = "ok"
+    candidates: int = 0
+    # The month that was asked for, so the explanation can name it and the client
+    # can show it back. A plain field rather than a private attribute: this is
+    # part of the payload the API returns.
+    asked_month: int = 1
+    # Months in which the REQUESTED interests do have candidates.
+    suggested_months: list[int] = Field(default_factory=list)
+    # Interests that do have candidates in the REQUESTED month.
+    suggested_interests: list[dict[str, str]] = Field(default_factory=list)
+    # The cheapest band that would unblock the brief, when budget is the blocker.
+    min_budget_band: int | None = None
+
+    def explain(self) -> str:
+        """A message written for the person who asked, not for the logs."""
+        if self.ok:
+            return "ok"
+        if self.reason == "out_of_season":
+            months = ", ".join(_MONTH_NAMES[m] for m in self.suggested_months)
+            return (
+                "Nothing on that list is open in "
+                f"{_MONTH_NAMES[self.asked_month]}. "
+                + (f"These interests work best in {months}. " if months else "")
+                + "Most treks and waterfalls in this district close or become unsafe "
+                "during the monsoon."
+            )
+        if self.reason == "budget_too_low":
+            return (
+                "Everything that matches is above your budget. The cheapest option "
+                f"for this month sits at band {self.min_budget_band} of 5."
+            )
+        if self.reason == "nothing_tagged":
+            return "Nothing in our data for this district matches those interests yet."
+        return (
+            "No places have been published for this district yet. If you are running "
+            "this locally, seed the data with `make seed && make publish`."
+        )
+
+
+_MONTH_NAMES = {
+    1: "January",
+    2: "February",
+    3: "March",
+    4: "April",
+    5: "May",
+    6: "June",
+    7: "July",
+    8: "August",
+    9: "September",
+    10: "October",
+    11: "November",
+    12: "December",
+}
+
+
+async def feasibility(conn: DbConn, brief: TripBrief) -> Feasibility:
+    """Diagnose whether a brief can be planned, relaxing one filter at a time."""
+    path = await district_path(conn, brief.district_slug)
+    if path is None:
+        return Feasibility(ok=False, reason="no_data")
+
+    # Counts over the district's published places/activities, sliced by which
+    # constraint is applied. Comparing the slices identifies the blocker.
+    row = await conn.fetchrow(
+        """
+        WITH scoped AS (
+            SELECT p.id, p.cost_band, p.best_months,
+                   EXISTS (
+                       SELECT 1 FROM poi_tags pt
+                       JOIN interest_tags it ON it.id = pt.tag_id
+                       WHERE pt.poi_id = p.id AND it.slug = ANY($1::text[])
+                   ) AS matches_interest
+            FROM pois p
+            JOIN regions r ON r.id = p.region_id
+            WHERE p.status = 'published'
+              AND p.kind IN ('place', 'activity')
+              AND r.path LIKE $2 || '%'
+        )
+        SELECT
+            count(*) AS published_in_district,
+            count(*) FILTER (WHERE matches_interest) AS tagged,
+            count(*) FILTER (
+                WHERE matches_interest
+                  AND (best_months IS NULL OR $3 = ANY(best_months))
+            ) AS in_season,
+            count(*) FILTER (
+                WHERE matches_interest
+                  AND (cost_band IS NULL OR cost_band <= $4)
+            ) AS in_budget,
+            count(*) FILTER (
+                WHERE matches_interest
+                  AND (best_months IS NULL OR $3 = ANY(best_months))
+                  AND (cost_band IS NULL OR cost_band <= $4)
+            ) AS exact,
+            min(cost_band) FILTER (
+                WHERE matches_interest
+                  AND (best_months IS NULL OR $3 = ANY(best_months))
+            ) AS cheapest_in_season
+        FROM scoped
+        """,
+        list(brief.tag_slugs),
+        path,
+        brief.travel_month,
+        brief.budget_band,
+    )
+    assert row is not None
+
+    result = Feasibility(
+        ok=int(row["exact"]) > 0,
+        candidates=int(row["exact"]),
+        asked_month=brief.travel_month,
+    )
+    if result.ok:
+        return result
+
+    # Attribute the failure to a single cause, cheapest fix first.
+    if int(row["published_in_district"]) == 0:
+        result.reason = "no_data"
+        return result
+    if int(row["tagged"]) == 0:
+        result.reason = "nothing_tagged"
+    elif int(row["in_season"]) == 0:
+        result.reason = "out_of_season"
+    elif int(row["in_budget"]) == 0 or int(row["exact"]) == 0:
+        result.reason = "budget_too_low"
+        result.min_budget_band = row["cheapest_in_season"]
+    else:  # pragma: no cover — the slices above are exhaustive
+        result.reason = "nothing_tagged"
+
+    result.suggested_months = await _months_for_interests(conn, brief, path)
+    result.suggested_interests = await _interests_for_month(conn, brief, path)
+    return result
+
+
+async def _months_for_interests(conn: DbConn, brief: TripBrief, path: str) -> list[int]:
+    """Months in which the requested interests have something to offer."""
+    rows = await conn.fetch(
+        """
+        SELECT m FROM generate_series(1, 12) AS m
+        WHERE EXISTS (
+            SELECT 1 FROM pois p
+            JOIN regions r ON r.id = p.region_id
+            JOIN poi_tags pt ON pt.poi_id = p.id
+            JOIN interest_tags it ON it.id = pt.tag_id
+            WHERE p.status = 'published'
+              AND p.kind IN ('place', 'activity')
+              AND r.path LIKE $2 || '%'
+              AND it.slug = ANY($1::text[])
+              AND (p.cost_band IS NULL OR p.cost_band <= $3)
+              AND (p.best_months IS NULL OR m = ANY(p.best_months))
+        )
+        ORDER BY m
+        """,
+        list(brief.tag_slugs),
+        path,
+        brief.budget_band,
+    )
+    return [int(r["m"]) for r in rows]
+
+
+async def _interests_for_month(conn: DbConn, brief: TripBrief, path: str) -> list[dict[str, str]]:
+    """Interests that do have candidates in the month and budget asked for.
+
+    Filtered to those with enough to fill a day, so we do not redirect someone
+    onto an interest backed by a single POI.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT it.slug, it.label, count(*) AS n
+        FROM pois p
+        JOIN regions r ON r.id = p.region_id
+        JOIN poi_tags pt ON pt.poi_id = p.id
+        JOIN interest_tags it ON it.id = pt.tag_id
+        WHERE p.status = 'published'
+          AND p.kind IN ('place', 'activity')
+          AND r.path LIKE $1 || '%'
+          AND it.kind = 'interest'
+          AND it.is_active
+          AND (p.cost_band IS NULL OR p.cost_band <= $2)
+          AND (p.best_months IS NULL OR $3 = ANY(p.best_months))
+        GROUP BY it.slug, it.label, it.display_order
+        HAVING count(*) >= 3
+        ORDER BY count(*) DESC, it.display_order
+        LIMIT 6
+        """,
+        path,
+        brief.budget_band,
+        brief.travel_month,
+    )
+    return [{"slug": str(r["slug"]), "label": str(r["label"])} for r in rows]

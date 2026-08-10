@@ -1,4 +1,4 @@
-import type { Interest, PlanAccepted, PlanStatus } from "./types";
+import type { Infeasible, Interest, PlanAccepted, PlanStatus } from "./types";
 
 /**
  * API client.
@@ -17,6 +17,22 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+/** A valid brief that cannot be planned, with the alternatives that would work. */
+export class InfeasibleError extends Error {
+  constructor(readonly detail: Infeasible) {
+    super(detail.message);
+  }
+}
+
+function isInfeasible(detail: unknown): detail is Infeasible {
+  return (
+    typeof detail === "object" &&
+    detail !== null &&
+    "reason" in detail &&
+    "suggested_months" in detail
+  );
 }
 
 function readSessionToken(): string | null {
@@ -73,7 +89,16 @@ export async function createPlan(input: PlanInput): Promise<PlanAccepted> {
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new ApiError(await parseError(response), response.status);
+  if (!response.ok) {
+    // A 422 carrying a structured body is an impossible brief, not a malformed
+    // one; the caller can act on it rather than just showing the text.
+    if (response.status === 422) {
+      const body = await response.json().catch(() => null);
+      if (body && isInfeasible(body.detail)) throw new InfeasibleError(body.detail);
+      throw new ApiError(await parseError(response), response.status);
+    }
+    throw new ApiError(await parseError(response), response.status);
+  }
   const accepted: PlanAccepted = await response.json();
   storeSessionToken(accepted.session_token);
   return accepted;

@@ -1,0 +1,50 @@
+# Isolated from the other Docker work on this machine (legalrag-db holds 5433):
+#   - explicit project name (COMPOSE_PROJECT_NAME in the Makefile)
+#   - non-default host ports
+#   - named volumes scoped to this project
+#
+# Only `db` starts by default. Ollama sits behind a profile so early steps don't
+# wait on a multi-GB image pull:
+#   make up      -> db only
+#   make up-llm  -> + ollama (needed from step 6, offline dev only)
+
+services:
+  db:
+    # Pinned, not :latest — reproducibility is a stated NFR.
+    image: pgvector/pgvector:0.8.6-pg17-trixie
+    container_name: tripplan-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tripplan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tripplan_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-tripplan}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `make up` blocks on this, so migrations never race startup.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tripplan} -d ${POSTGRES_DB:-tripplan}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  ollama:
+    image: ollama/ollama:0.32.6
+    container_name: tripplan-ollama
+    profiles: ["llm"]
+    ports:
+      - "${OLLAMA_HOST_PORT:-11436}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  pgdata:
+  ollama:

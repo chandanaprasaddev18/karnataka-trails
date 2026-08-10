@@ -1,0 +1,102 @@
+[project]
+name = "tripplan"
+version = "0.1.0"
+description = "LLM-composed, route-verified trip itineraries over a curated Karnataka tourism dataset."
+# No `readme` key: the project README lives at the repo root, and hatchling
+# rejects paths outside the build directory.
+requires-python = ">=3.12"
+
+# Core runtime. The engine, the CLI and the migration runner need nothing more
+# than this — heavy/optional deps live in extras so early steps install fast.
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "asyncpg>=0.30",
+    "typer>=0.15",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Step 7. The API and the worker share this extra (one image, two entrypoints).
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+# Step 6, only if the hosted LLM adapter is swapped for a vendor SDK. The
+# default hosted + ollama adapters are plain httpx, so this stays uninstalled.
+llm = [
+    "anthropic>=0.40",
+]
+
+[project.scripts]
+tripplan = "tripplan.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    # asyncpg ships no py.typed marker. Real stubs beat silencing the error:
+    # they catch actual driver misuse under --strict.
+    "asyncpg-stubs>=0.30",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tripplan"]
+
+# ---------------------------------------------------------------------------
+# Tooling. Java analogue: this one file replaces pom.xml + checkstyle.xml +
+# spotbugs config + surefire config.
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # bugbear — likely bugs
+    "A",        # shadowed builtins
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "PTH",      # pathlib over os.path
+    "RUF",      # ruff-specific
+    "ASYNC",    # blocking calls inside async def
+    "S",        # bandit
+]
+ignore = [
+    "S101",  # assert is fine — pytest depends on it
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]  # hardcoded test credentials are fine
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Integration tests need Docker up; they self-skip when the DB is unreachable.
+markers = [
+    "integration: requires the Docker stack to be running",
+]
+addopts = "-q --strict-markers"

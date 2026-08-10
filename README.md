@@ -1,0 +1,45 @@
+# Trip Planner
+
+Day-by-day trip itineraries for Karnataka, composed by an LLM over a **curated
+database** and routed by a real routing provider — never by the model.
+
+Full architecture, schema rationale, engine flow, JSON schema and build sequence:
+**[`docs/architecture.md`](docs/architecture.md)**. Working agreements and the
+domain vocabulary: [`CLAUDE.md`](CLAUDE.md).
+
+## Quick start
+
+```bash
+make env         # create .env from .env.example
+make install     # uv sync (Python 3.12)
+make up          # Postgres 17 + pgvector on :5434
+make migrate     # apply migrations
+make seed        # load taxonomy, regions, POIs (as status=draft)
+make publish     # promote fact-checked POIs to status=published
+make plan        # generate an itinerary on the CLI
+```
+
+`make` with no target lists every command.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `api/` | FastAPI app, itinerary engine, worker, CLI (one image, two entrypoints) |
+| `api/migrations/` | Forward-only, checksummed SQL migrations |
+| `api/seeds/` | Curated YAML seed data + loader input |
+| `web/` | Next.js frontend |
+| `docs/architecture.md` | The design plan this build follows |
+
+## The four rules
+
+1. The LLM selects from a retrieved candidate set only — it cannot name a place
+   that isn't in our database. Enforced in `engine/validate.py`, not the prompt.
+2. Distances, durations and stop ordering come from a `RoutingProvider`.
+3. Generation is an async job; the HTTP endpoint only enqueues.
+4. The itinerary is a versioned Pydantic schema (`schema_version`).
+
+## Current status
+
+Phase 1: *Plan by Interest*, Chikkamagaluru, card output, static travel-time
+estimates, no auth. See the phase map in `CLAUDE.md`.

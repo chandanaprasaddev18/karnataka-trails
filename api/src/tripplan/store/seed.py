@@ -468,8 +468,6 @@ async def _write_detail(
     detail: PlaceDetailSeed | StayDetailSeed | ActivityDetailSeed,
 ) -> None:
     """Upsert the kind-specific detail row."""
-    import json
-
     if isinstance(detail, PlaceDetailSeed):
         await conn.execute(
             """
@@ -487,7 +485,7 @@ async def _write_detail(
             poi_id,
             detail.type,
             detail.best_time_of_day,
-            json.dumps(detail.opening_hours) if detail.opening_hours else None,
+            detail.opening_hours,
             detail.entry_fee_paise,
             detail.requires_permit,
             detail.notes,
@@ -515,8 +513,8 @@ async def _write_detail(
             per_max,
             detail.max_occupancy,
             detail.meals_included,
-            json.dumps(detail.amenities),
-            json.dumps(detail.contact),
+            detail.amenities,
+            detail.contact,
         )
     else:
         await conn.execute(
@@ -540,7 +538,7 @@ async def _write_detail(
             detail.requires_guide,
             detail.requires_booking,
             detail.operator_name,
-            json.dumps(detail.contact),
+            detail.contact,
         )
 
 
@@ -551,8 +549,6 @@ async def _write_detail(
 
 async def load_guides(conn: asyncpg.Connection, seeds_dir: Path, district: str) -> int:
     """Load guides and their POI links. Returns the number of guides written."""
-    import json
-
     path = seeds_dir / district / "guides.yaml"
     guides = [GuideSeed.model_validate(r) for r in _read_yaml_list(path)]
 
@@ -591,7 +587,7 @@ async def load_guides(conn: asyncpg.Connection, seeds_dir: Path, district: str) 
                 guide.name,
                 regions[guide.region],
                 guide.languages,
-                json.dumps({}),
+                {},  # contact: never seeded, see the file header
                 guide.is_verified,
                 guide.day_rate_paise,
                 guide.source,

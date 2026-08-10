@@ -14,7 +14,11 @@ import typer
 
 from tripplan.config import get_settings
 from tripplan.db import apply_migrations, connect
+from tripplan.engine.brief import BriefError, build_brief
+from tripplan.engine.pipeline import EngineError, generate
 from tripplan.observability.logging import configure_logging
+from tripplan.render import render_text
+from tripplan.store.itineraries import create_request, save_itinerary
 from tripplan.store.seed import (
     load_guides,
     load_interest_tags,
@@ -153,6 +157,66 @@ def publish(
                 include_placeholders=include_placeholders,
             )
         typer.echo(report.render())
+
+    asyncio.run(_run())
+
+
+@app.command()
+def plan(
+    interests: str = typer.Option("trekking", help="Comma-separated interest slugs."),
+    days: int = 3,
+    people: int = 4,
+    budget: int = typer.Option(3, help="Budget band, 1 (cheapest) to 5."),
+    origin: str = "Bengaluru",
+    district: str = DEFAULT_DISTRICT,
+    month: int | None = typer.Option(None, help="Travel month 1-12; defaults to now."),
+    save: bool = typer.Option(True, help="Persist the request and itinerary."),
+    as_json: bool = typer.Option(False, "--json", help="Emit the raw payload instead of cards."),
+) -> None:
+    """Generate an itinerary on the command line."""
+
+    async def _run() -> None:
+        cfg = get_settings()
+        try:
+            brief = build_brief(
+                interests=interests.split(","),
+                district_slug=district,
+                days=days,
+                party_size=people,
+                budget_band=budget,
+                origin_label=origin,
+                travel_month=month,
+            )
+        except BriefError as exc:
+            typer.secho(f"bad request: {exc}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2) from exc
+
+        async with connect(cfg) as conn:
+            if save:
+                request_id = await create_request(
+                    conn,
+                    brief,
+                    # An owner label for anonymous CLI runs, not a credential.
+                    session_token="cli",  # noqa: S106
+                )
+                brief = brief.model_copy(update={"request_id": request_id})
+
+            try:
+                result = await generate(conn, brief, cfg)
+            except EngineError as exc:
+                typer.secho(f"engine: {exc}", fg=typer.colors.RED, err=True)
+                raise typer.Exit(code=1) from exc
+
+            if save:
+                itinerary_id = await save_itinerary(conn, result.itinerary)
+                result.itinerary.itinerary_id = itinerary_id
+
+        if as_json:
+            typer.echo(result.itinerary.model_dump_json(indent=2))
+        else:
+            typer.echo(render_text(result.itinerary))
+        if result.fallback_reason:
+            typer.secho(f"\nfell back: {result.fallback_reason}", fg=typer.colors.YELLOW, err=True)
 
     asyncio.run(_run())
 

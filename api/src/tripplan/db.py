@@ -11,6 +11,7 @@ add a new migration.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -35,6 +36,21 @@ class MigrationError(RuntimeError):
     """Raised when an applied migration's content has changed on disk."""
 
 
+async def init_connection(conn: asyncpg.Connection) -> None:
+    """Decode jsonb to Python objects instead of raw strings.
+
+    Without this, asyncpg hands back the JSON *text* for `media`, `contact` and
+    `amenities`, and every read site has to remember to json.loads() it. One
+    forgotten call becomes a string rendered where a list was expected.
+    """
+    await conn.set_type_codec(
+        "jsonb",
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+
+
 @asynccontextmanager
 async def pool(settings: Settings | None = None) -> AsyncIterator[asyncpg.Pool]:
     """Open an asyncpg pool for the duration of the context."""
@@ -43,6 +59,7 @@ async def pool(settings: Settings | None = None) -> AsyncIterator[asyncpg.Pool]:
         dsn=cfg.db.dsn(),
         min_size=cfg.db.min_pool_size,
         max_size=cfg.db.max_pool_size,
+        init=init_connection,
     )
     if created is None:  # pragma: no cover — asyncpg only returns None on bad args
         raise RuntimeError("failed to create connection pool")
@@ -57,6 +74,7 @@ async def connect(settings: Settings | None = None) -> AsyncIterator[asyncpg.Con
     """Open a single connection — for CLI commands that don't need a pool."""
     cfg = settings or get_settings()
     conn = await asyncpg.connect(dsn=cfg.db.dsn())
+    await init_connection(conn)
     try:
         yield conn
     finally:

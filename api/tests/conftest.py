@@ -14,7 +14,7 @@ import pytest
 import pytest_asyncio
 
 from tripplan.config import Settings, get_settings
-from tripplan.db import apply_migrations
+from tripplan.db import apply_migrations, init_connection
 
 
 @pytest.fixture(scope="session")
@@ -24,9 +24,14 @@ def settings() -> Settings:
 
 async def _try_connect(cfg: Settings) -> asyncpg.Connection | None:
     try:
-        return await asyncpg.connect(dsn=cfg.db.dsn(), timeout=3)
+        conn = await asyncpg.connect(dsn=cfg.db.dsn(), timeout=3)
     except (OSError, asyncpg.PostgresError, TimeoutError):
         return None
+    # Same codec setup db.connect() performs. Without it, tests hit a jsonb
+    # encoding error that production code never sees — a fixture that is not
+    # faithful to the real connection is worse than no fixture.
+    await init_connection(conn)
+    return conn
 
 
 @pytest_asyncio.fixture

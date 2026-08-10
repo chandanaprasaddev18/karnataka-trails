@@ -110,9 +110,10 @@ publish: ## Promote fact-checked POIs to status=published (see step 4 gate)
 
 # --- engine ----------------------------------------------------------------
 
-plan: ## Generate an itinerary on the CLI (INTERESTS= DAYS= PEOPLE= BUDGET= ORIGIN=)
+plan: ## Generate an itinerary on the CLI (INTERESTS= DAYS= PEOPLE= BUDGET= ORIGIN= MONTH=)
 	$(UV) run tripplan plan --interests $(INTERESTS) --days $(DAYS) \
-	  --people $(PEOPLE) --budget $(BUDGET) --origin $(ORIGIN)
+	  --people $(PEOPLE) --budget $(BUDGET) --origin $(ORIGIN) \
+	  $(if $(MONTH),--month $(MONTH),) $(if $(JSON),--json,)
 
 api: ## Run the FastAPI server on :8000
 	$(UV) run uvicorn tripplan.api.app:app --reload --port 8000

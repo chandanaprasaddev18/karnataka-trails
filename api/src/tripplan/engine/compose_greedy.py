@@ -187,12 +187,12 @@ def compose(
                 day_number=day_number,
                 title=f"Day {day_number} — {cluster.region_name}",
                 narrative=(
-                    f"Travel day: about {approach // 60}h {approach % 60:02d}m "
-                    f"to reach {cluster.region_name}, then overnight."
+                    f"Travel day: about {_hhmm(approach)} to reach "
+                    f"{cluster.region_name}, then overnight."
                     if not picked
                     else (
-                        f"{len(picked)} stop(s) around {cluster.region_name}, "
-                        f"about {spent // 60}h {spent % 60:02d}m of activity."
+                        f"{len(picked)} {'stop' if len(picked) == 1 else 'stops'} around "
+                        f"{cluster.region_name}, about {_hhmm(spent)} of activity."
                     )
                 ),
                 stay_ref=stay.ref if stay else None,
@@ -219,6 +219,16 @@ def compose(
         ),
         days=days,
     )
+
+
+def _hhmm(minutes: int) -> str:
+    """Human duration. This prose is user-facing, so "5h" beats "5h 00m"."""
+    hours, rest = divmod(minutes, 60)
+    if hours and rest:
+        return f"{hours}h {rest}m"
+    if hours:
+        return f"{hours}h"
+    return f"{rest}m"
 
 
 def _why(candidate: Candidate, brief: TripBrief) -> str:

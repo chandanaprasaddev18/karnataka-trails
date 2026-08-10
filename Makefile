@@ -34,7 +34,8 @@ ORIGIN ?= Bengaluru
 .DEFAULT_GOAL := help
 .PHONY: help env install install-api up up-llm down down-v ps logs wait migrate db-info \
         config-show psql seed seed-taxonomy seed-pois publish plan api worker \
-        test test-unit lint fmt typecheck check clean web-install web-dev
+        test test-unit lint fmt typecheck check check-all clean \
+        web-install web-dev web-check web-build
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -129,6 +130,12 @@ web-install: ## Install frontend deps
 web-dev: ## Run the Next.js dev server on :3000
 	cd web && npm run dev
 
+web-check: ## Type-check the frontend
+	cd web && npx next typegen && npx tsc --noEmit
+
+web-build: ## Production build of the frontend
+	cd web && npm run build
+
 # --- quality ---------------------------------------------------------------
 
 # The quality tools all read their config from api/pyproject.toml, and pytest
@@ -151,7 +158,9 @@ fmt: ## Auto-format and auto-fix
 typecheck: ## Type-check with mypy --strict
 	cd api && uv run mypy src tests
 
-check: lint typecheck test ## Everything CI runs
+check: lint typecheck test ## Everything CI runs (backend)
+
+check-all: check web-check ## Backend + frontend (needs `make web-install` first)
 
 clean: ## Remove caches
 	rm -rf api/.pytest_cache api/.mypy_cache api/.ruff_cache api/htmlcov api/.coverage

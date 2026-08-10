@@ -84,6 +84,7 @@ covered by a test in `api/tests/test_engine.py`.
 | Change | Goes in |
 |---|---|
 | A planning mode's filter | `store/pois.py` — and nowhere else |
+| A frontend type | `web/lib/types.ts`, mirroring `domain/models.py` |
 | A new LLM provider | `llm/` behind the existing port |
 | A maps provider | `routing/` implementing `RoutingProvider` |
 | A new fact on the output | `engine/assemble.py`, sourced from the DB |
@@ -103,6 +104,22 @@ covered by a test in `api/tests/test_engine.py`.
 - New POI rows require `source` and `data_confidence`. Guides must not carry
   invented names or contact details — a test enforces this.
 
+## Frontend notes
+
+- **Next 16.** `next dev` writes `web/AGENTS.md` (and a `CLAUDE.md` that includes
+  it) warning that this version has breaking changes. Read
+  `web/node_modules/next/dist/docs/` before writing frontend code; the one that
+  bites here is that `params` is a Promise. Use the generated
+  `PageProps<'/route'>` helper (`npx next typegen`, or `make web-check`).
+- **`web/lib/types.ts` is hand-written**, not generated from the OpenAPI schema —
+  codegen would need the API running at build time. `schema_version` is the
+  safety net: the renderer refuses a payload version it does not understand
+  rather than silently dropping fields.
+- **No arithmetic in the browser.** Totals, costs and times are computed
+  server-side; the client divides paise by 100 for display only. A number on
+  screen cannot disagree with the number that was stored.
+- `make web-check` type-checks the frontend; `make check-all` runs both sides.
+
 ## Known gaps and follow-ups
 
 - **Re-seeding preserves `status`.** Editing a fact on an already-published row
@@ -114,6 +131,11 @@ covered by a test in `api/tests/test_engine.py`.
   but unused; the engine only warns via `late_finish`.
 - **All seeded guides are synthetic placeholders**, so the guide path is only
   exercised with `tripplan publish --include-placeholders` (local dev only).
+- **The LLM success path is unverified against a live provider** — no API key is
+  available on this machine. Everything up to and including the HTTP call is
+  tested, and the degradation path was verified live (401 -> fallback).
+- **Frontend types are hand-written** (see Frontend notes). If they drift, the
+  `schema_version` check catches a breaking change but not an added field.
 
 ## Phase map
 

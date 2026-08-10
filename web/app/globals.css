@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+ * A deliberately restrained palette: warm paper, ink, and a single moss accent
+ * borrowed from the coffee country this app plans trips through. One accent
+ * colour keeps the warning states legible, which matters more here than variety
+ * — an itinerary carrying six advisories must not look like a christmas tree.
+ */
+@theme {
+  --color-paper: #faf7f2;
+  --color-card: #ffffff;
+  --color-ink: #1c1917;
+  --color-muted: #6b6560;
+  --color-line: #e7e1d8;
+  --color-moss: #3f6146;
+  --color-moss-soft: #eef2ee;
+  --color-clay: #a8552f;
+  --color-clay-soft: #fbf0ea;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

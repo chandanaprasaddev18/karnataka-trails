@@ -203,6 +203,10 @@ export interface Interest {
   slug: string;
   label: string;
   description: string | null;
+  /** A photograph of a published place carrying this tag. Null is normal. */
+  photo: Photo | null;
+  /** Which place that photograph shows — rendered, never implied. */
+  photo_caption: string | null;
 }
 
 export interface PlanAccepted {

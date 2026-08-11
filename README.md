@@ -48,8 +48,9 @@ Three rules keep it honest:
 - **No readable licence, no photo.** Author and licence are stored and rendered on
   every image, because attribution is a condition of the licence.
 
-Roughly 26 of 60 records get a photo. That ratio is the point: the gaps are
-honest.
+22 of 29 published places get photographs (three each), plus 8 regions — 76 files,
+26 MB. Stays and activities have none of their own and show their locality's,
+labelled as such. That ratio is the point: the gaps are honest.
 
 ## The four rules
 

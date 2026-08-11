@@ -84,6 +84,35 @@ async def test_interests_come_from_the_database(client: httpx.AsyncClient) -> No
 
 
 @pytest.mark.integration
+async def test_interest_photos_are_real_places_and_never_shared(
+    client: httpx.AsyncClient,
+    seeded: asyncpg.Connection,
+) -> None:
+    """The wizard's interest cards show photographs, so two rules have to hold.
+
+    A card captioned with a place name is a claim about that place: it must name
+    the place shown, and that place must be one we actually publish. And no two
+    interests may show the same photograph — a grid with a repeated image reads as
+    a bug, which is why the endpoint assigns greedily rather than taking each
+    tag's top pick.
+    """
+    rows = (await client.get("/api/taxonomy/interests")).json()
+    shown = [r for r in rows if r["photo"]]
+    assert shown, "the seeded corpus has photographed places; expected some cards"
+
+    captions = [r["photo_caption"] for r in shown]
+    assert len(captions) == len(set(captions)), f"an image is reused across cards: {captions}"
+
+    for row in shown:
+        assert row["photo_caption"], "a photo without a caption implies the interest IS the place"
+        published = await seeded.fetchval(
+            "SELECT count(*) FROM pois WHERE name = $1 AND kind = 'place' AND status = 'published'",
+            row["photo_caption"],
+        )
+        assert published == 1, f"{row['slug']} names a place we do not publish"
+
+
+@pytest.mark.integration
 async def test_plan_returns_202_with_a_poll_url(client: httpx.AsyncClient) -> None:
     """Generation is async, so the POST must not return an itinerary."""
     response = await client.post("/api/plan", json=_VALID_BODY)

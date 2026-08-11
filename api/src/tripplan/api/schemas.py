@@ -20,6 +20,13 @@ class InterestOut(BaseModel):
     slug: str
     label: str
     description: str | None = None
+    # A photograph of a real published place carrying this tag, so the wizard shows
+    # what an interest looks like here rather than a stock icon. None is normal:
+    # roughly half the corpus has no photograph and the card falls back to a glyph.
+    photo: dict[str, Any] | None = None
+    # What that photograph shows. Rendered, because a picture on an interest card
+    # would otherwise imply the interest is the place.
+    photo_caption: str | None = None
 
 
 class PlanRequestIn(BaseModel):

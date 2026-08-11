@@ -109,6 +109,10 @@ covered by a test in `api/tests/test_engine.py`.
   the runner refuse to start — that is deliberate.
 - Integration tests self-skip when Postgres is down; `make test-unit` never needs
   Docker.
+- **Stop the worker before running the integration suite.** The tests share the
+  dev database, so a running worker claims the jobs they enqueue and the queue
+  tests fail with a genuine-looking SKIP LOCKED assertion. The failure is the
+  environment, not the code.
 - New POI rows require `source` and `data_confidence`. Guides must not carry
   invented names or contact details — a test enforces this.
 
@@ -136,8 +140,22 @@ through Next's image optimiser, and a page load should not depend on a free
 external service. `web/public/photos/` is generated and gitignored — repopulate
 with `make fetch-photos`.
 
-About half the records have no photo. That is the correct outcome, and the UI
-renders a generated gradient rather than a stand-in image.
+Coverage today: **22 of 29 published places** carry photographs (three each, 60
+in total), plus 8 regions — 76 files, 26 MB. Stays and activities have none by
+design and borrow their locality's, labelled as the area. The remaining gaps are
+places nobody has photographed on Commons; the UI renders a generated gradient
+rather than a stand-in image.
+
+Two matching rules were added after a place with dozens of Commons photographs
+came back empty:
+
+- **Search both `"<name> <region>"` and the bare `"<name>"`, and union the
+  results.** The context-qualified query alone returned district gazetteer PDFs
+  for Baba Budangiri, and because the fallback only ran when a query returned
+  *nothing*, those junk hits blocked every good photograph.
+- **A taluk with no photograph of its own may borrow one from a published place
+  inside it.** Locality-level fallbacks are what stay cards and unphotographed
+  stops render, so an empty taluk left whole days with no imagery.
 
 ## Design language
 
@@ -177,6 +195,19 @@ quiet affirmative detail. Nothing else gets a colour.
 - **Testing a mobile layout needs CDP device emulation.** Headless Chrome's
   `--window-size` does not set the layout viewport, so a narrow screenshot just
   crops a desktop-width render and looks like an overflow bug that is not there.
+- **Never put a `PhotoFrame` with its credit inside a `Link`.** The credit is an
+  anchor to the Commons source page, and a nested `<a>` is invalid HTML that
+  fails hydration — React regenerates the tree and the console fills with errors.
+  Pass `showCredit={false}` and render the attribution as text alongside.
+- **A screenshot does not trigger lazy loading.** `Page.captureScreenshot` with
+  `captureBeyondViewport` renders the whole page, but `next/image` waits on an
+  IntersectionObserver, so everything below the fold photographs as an empty box.
+  Scroll the page first, or you will go hunting for a rendering bug that is a
+  camera artefact. (Same family as the `--window-size` trap above.)
+- **`img.naturalWidth` is density-corrected.** With a `w`-descriptor `srcset`,
+  the browser divides the intrinsic width by the selected candidate's effective
+  density — a 1280px file in a 1280px box reports 426. It is not a low-resolution
+  image; check the file, not the DOM.
 
 ## Known gaps and follow-ups
 

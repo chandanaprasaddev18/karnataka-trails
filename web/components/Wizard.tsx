@@ -10,6 +10,7 @@ import {
   createPlan,
   fetchInterests,
 } from "@/lib/api";
+import { PhotoFrame } from "@/components/PhotoFrame";
 import { budgetLabel } from "@/lib/format";
 import type { Infeasible, Interest } from "@/lib/types";
 
@@ -98,7 +99,10 @@ export function Wizard() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col lg:flex-row">
+    /* overflow-hidden is load-bearing: the sidebar bleeds a pseudo-element
+       past the container's right edge, and without clipping here that becomes a
+       horizontal scrollbar on the whole page. */
+    <div className="relative mx-auto flex max-w-6xl flex-col overflow-hidden lg:flex-row">
       {/* --- interests ---------------------------------------------------- */}
       <section className="flex-1 px-5 py-10 sm:px-8">
         <p className="eyebrow text-terracotta">Step 1 of 2</p>
@@ -128,25 +132,68 @@ export function Wizard() {
                   type="button"
                   onClick={() => toggle(interest.slug)}
                   aria-pressed={on}
-                  title={interest.description ?? undefined}
-                  className={`flex flex-col items-center gap-2.5 rounded-xl px-3 py-5 transition ${
+                  title={
+                    interest.photo_caption
+                      ? `${interest.description ?? interest.label} — photo shows ${interest.photo_caption}`
+                      : (interest.description ?? undefined)
+                  }
+                  className={`group overflow-hidden rounded-xl text-left transition ${
                     on
-                      ? "border-[1.5px] border-marigold bg-marigold-soft"
-                      : "border-[1.5px] border-dashed border-line bg-card hover:border-marigold/50"
+                      ? "border-[1.5px] border-marigold ring-2 ring-marigold/30"
+                      : "border-[1.5px] border-line hover:border-marigold/60"
                   }`}
                 >
-                  <span
-                    aria-hidden
-                    className={`flex h-11 w-11 items-center justify-center rounded-full font-display text-base transition ${
-                      on ? "-rotate-6 bg-marigold text-navy" : "bg-cream text-muted"
-                    }`}
-                  >
-                    {GLYPH[interest.slug] ?? "✦"}
+                  {/* A photograph of a place that actually carries this tag,
+                      captioned with the place. The stamp glyph stays as the
+                      fallback for a tag with no photographed place — it must not
+                      borrow a picture from a different interest. */}
+                  <span className="relative block h-24 w-full">
+                    <PhotoFrame
+                      photo={interest.photo}
+                      alt=""
+                      tone="place"
+                      variant="cover"
+                      rounded="rounded-none"
+                      sizes="(max-width: 640px) 45vw, 220px"
+                      showCredit={false}
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 bg-gradient-to-t from-navy/85 via-navy/20 to-transparent"
+                    />
+                    {!interest.photo && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-0 flex items-center justify-center font-display text-2xl text-cream/80"
+                      >
+                        {GLYPH[interest.slug] ?? "✦"}
+                      </span>
+                    )}
+                    {on && (
+                      <span
+                        aria-hidden
+                        className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-marigold font-display text-[13px] text-navy"
+                      >
+                        ✓
+                      </span>
+                    )}
+                    <span className="absolute bottom-1.5 left-2.5 right-2.5">
+                      <span className="block truncate font-display text-[13.5px] font-semibold text-cream">
+                        {interest.label}
+                      </span>
+                      {interest.photo_caption && (
+                        <span className="block truncate text-[9px] text-cream/60">
+                          {interest.photo_caption} · © {interest.photo?.artist}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   <span
-                    className={`text-center text-[12.5px] ${on ? "font-medium text-ink" : "text-muted"}`}
+                    className={`block px-2.5 py-2 text-[11px] leading-snug ${
+                      on ? "bg-marigold-soft text-ink" : "bg-card text-muted"
+                    }`}
                   >
-                    {interest.label}
+                    {interest.description ?? " "}
                   </span>
                 </button>
               );
@@ -180,7 +227,10 @@ export function Wizard() {
       </section>
 
       {/* --- trip shape --------------------------------------------------- */}
-      <aside className="w-full shrink-0 bg-navy px-6 py-10 sm:px-8 lg:w-[340px]">
+      {/* The rail bleeds off the right edge instead of stopping at the centred
+          container, which otherwise left a stripe of cream beside a full-height
+          navy panel and read as a layout mistake. */}
+      <aside className="relative w-full shrink-0 bg-navy px-6 py-10 after:absolute after:inset-y-0 after:left-full after:w-[50vw] after:bg-navy after:content-[''] sm:px-8 lg:w-[340px]">
         <h2 className="font-display text-base font-semibold text-cream">Your trip, so far</h2>
 
         <div className="mt-5">

@@ -52,6 +52,11 @@ export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
           aria-hidden
           className="absolute inset-0 bg-gradient-to-r from-navy from-25% via-navy/75 to-transparent"
         />
+        {/* On a phone the text spans the full width, so the horizontal ramp runs
+            out before the text does and the eyebrow ends up on open sky. A flat
+            scrim would erase the photograph on a wide screen, so it is scoped to
+            small viewports where there is no "clear side" to protect. */}
+        <div aria-hidden className="absolute inset-0 bg-navy/45 sm:hidden" />
         <div
           aria-hidden
           className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-navy to-transparent"
@@ -183,7 +188,9 @@ function TripGallery({ days }: { days: ItineraryDay[] }) {
       }
     }
   }
-  if (shots.length < 3) return null;
+  // Two is enough to read as a strip. A single lonely tile is not, and a
+  // single-interest trip in a quiet month legitimately produces one or none.
+  if (shots.length < 2) return null;
 
   return (
     <section className="border-y border-navy-line bg-navy-deep">
@@ -285,15 +292,18 @@ function Stop({ item }: { item: ItineraryItem }) {
       />
       <div className="min-w-0 flex-1">
         <LegLine leg={item.leg_from_previous} />
-        <div className="flex gap-4 rounded-xl border border-line bg-card p-3.5">
+        {/* Stacked on a phone: a 128px thumbnail beside the text left roughly
+            twenty characters per line, so the summary ran to five lines. Full
+            width above the text reads better and shows the photograph larger. */}
+        <div className="flex flex-col gap-3 rounded-xl border border-line bg-card p-3.5 sm:flex-row sm:gap-4">
           <div className="relative shrink-0">
             <PhotoFrame
               photo={photo}
               alt={item.name}
               tone={item.kind === "activity" ? "activity" : "place"}
               rounded="rounded-lg"
-              className="h-24 w-32 sm:h-28 sm:w-40"
-              sizes="160px"
+              className="h-40 w-full sm:h-28 sm:w-40"
+              sizes="(max-width: 640px) 92vw, 160px"
               showCredit={false}
             />
             {/* Most photographed places carry three images. Saying so is more
@@ -368,8 +378,10 @@ function StayRow({ day }: { day: ItineraryDay }) {
 
   return (
     <div className="mt-4 flex gap-3.5 overflow-hidden rounded-xl bg-navy p-3.5">
+      {/* Shown at every width. Hiding it on a phone while still printing
+          "photo shows Kalasa" left a caption under nothing. */}
       {area && (
-        <div className="relative hidden h-20 w-28 shrink-0 sm:block">
+        <div className="relative h-16 w-20 shrink-0 sm:h-20 sm:w-28">
           <PhotoFrame
             photo={area}
             alt={`Around ${day.stay.region?.name ?? day.stay.name}`}

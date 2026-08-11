@@ -13,7 +13,7 @@ from __future__ import annotations
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
@@ -132,14 +132,71 @@ async def list_interests(conn: Conn) -> list[InterestOut]:
         ORDER BY display_order, label
         """
     )
-    return [
-        InterestOut(
-            slug=str(r["slug"]),
-            label=str(r["label"]),
-            description=r["description"],
+
+    # A representative photograph per interest: a published PLACE carrying the
+    # tag, most strongly tagged first. Several candidates per tag are fetched
+    # because the top pick is often shared — Kudremukh Peak is the strongest
+    # candidate for both trekking and adventurous — and a grid where two cards
+    # show the same image reads as a bug.
+    #
+    # Places only, deliberately. An activity's photo is its locality's (see the
+    # fetcher's rules), and a card captioned "Trekking" showing a valley that
+    # merely contains a trek would be a decorative stand-in.
+    photo_rows = await conn.fetch(
+        """
+        SELECT tag_slug, name, photo FROM (
+            SELECT it.slug AS tag_slug, p.name, p.media -> 0 AS photo,
+                   row_number() OVER (
+                       PARTITION BY it.slug
+                       ORDER BY pt.weight DESC, p.data_confidence DESC, p.name
+                   ) AS rank
+            FROM interest_tags it
+            JOIN poi_tags pt ON pt.tag_id = it.id
+            JOIN pois p ON p.id = pt.poi_id
+            WHERE it.kind = 'interest'
+              AND p.status = 'published'
+              AND p.kind = 'place'
+              AND p.media <> '[]'::jsonb
+        ) ranked
+        WHERE rank <= 5
+        ORDER BY tag_slug, rank
+        """
+    )
+
+    # Greedy, in tag order: take the strongest candidate no other interest has
+    # taken, and fall back to the strongest of all if every one is spoken for.
+    # Order comes from display_order, so the tags a user sees first get first pick.
+    candidates: dict[str, list[tuple[dict[str, Any], str]]] = {}
+    for r in photo_rows:
+        if r["photo"]:
+            candidates.setdefault(str(r["tag_slug"]), []).append(
+                (dict(r["photo"]), str(r["name"]))
+            )
+
+    used: set[str] = set()
+    shots: dict[str, tuple[dict[str, Any], str]] = {}
+    for r in rows:
+        options = candidates.get(str(r["slug"]))
+        if not options:
+            continue
+        pick = next((o for o in options if o[1] not in used), options[0])
+        used.add(pick[1])
+        shots[str(r["slug"])] = pick
+
+    out: list[InterestOut] = []
+    for r in rows:
+        slug = str(r["slug"])
+        shot = shots.get(slug)
+        out.append(
+            InterestOut(
+                slug=slug,
+                label=str(r["label"]),
+                description=r["description"],
+                photo=shot[0] if shot else None,
+                photo_caption=shot[1] if shot else None,
+            )
         )
-        for r in rows
-    ]
+    return out
 
 
 @app.get("/api/districts", response_model=list[DistrictOut], tags=["taxonomy"])

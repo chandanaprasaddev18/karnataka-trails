@@ -6,7 +6,7 @@ import json
 from uuid import UUID
 
 from tripplan.db import DbConn
-from tripplan.domain.models import Itinerary, OriginRef, TripBrief
+from tripplan.domain.models import AnchorRef, GeoPoint, Itinerary, OriginRef, TripBrief
 from tripplan.observability.logging import get_logger
 
 log = get_logger(__name__)
@@ -22,12 +22,22 @@ async def create_request(conn: DbConn, brief: TripBrief, *, session_token: str) 
             list(brief.tag_slugs),
         )
     ]
+    # When the anchor IS a POI we publish, keep the foreign key as well as the
+    # point: the point is what the engine reads, but the FK is what makes "which
+    # places do people plan around?" answerable in SQL later.
+    anchor_poi_id = None
+    if brief.anchor is not None and brief.anchor.kind == "poi":
+        anchor_poi_id = await conn.fetchval(
+            "SELECT id FROM pois WHERE slug = $1", brief.anchor.slug
+        )
+
     request_id = await conn.fetchval(
         """
         INSERT INTO trip_requests (
             session_token, mode, tag_ids, region_id, days, party_size, budget_band,
-            origin_label, origin_lat, origin_lon, travel_month
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            origin_label, origin_lat, origin_lon, travel_month,
+            anchor_poi_id, anchor_label, anchor_lat, anchor_lon, radius_km
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
         RETURNING id
         """,
         session_token,
@@ -41,6 +51,11 @@ async def create_request(conn: DbConn, brief: TripBrief, *, session_token: str) 
         brief.origin.lat,
         brief.origin.lon,
         brief.travel_month,
+        anchor_poi_id,
+        brief.anchor.label if brief.anchor else None,
+        brief.anchor.point.lat if brief.anchor else None,
+        brief.anchor.point.lon if brief.anchor else None,
+        brief.radius_km,
     )
     return UUID(str(request_id))
 
@@ -130,9 +145,12 @@ async def load_brief(conn: DbConn, request_id: UUID) -> TripBrief | None:
         """
         SELECT tr.mode, tr.tag_ids, tr.days, tr.party_size, tr.budget_band,
                tr.origin_label, tr.origin_lat, tr.origin_lon, tr.created_at,
-               tr.travel_month, r.slug AS district_slug
+               tr.travel_month, r.slug AS district_slug,
+               tr.anchor_label, tr.anchor_lat, tr.anchor_lon, tr.radius_km,
+               ap.slug AS anchor_poi_slug
         FROM trip_requests tr
         LEFT JOIN regions r ON r.id = tr.region_id
+        LEFT JOIN pois ap ON ap.id = tr.anchor_poi_id
         WHERE tr.id = $1
         """,
         request_id,
@@ -147,6 +165,19 @@ async def load_brief(conn: DbConn, request_id: UUID) -> TripBrief | None:
             list(row["tag_ids"] or []),
         )
     ]
+
+    # The anchor must be read back, not re-derived. A location-mode request whose
+    # anchor is dropped here plans the whole district instead of the neighbourhood
+    # and looks like a success — the same silent-degradation shape as the
+    # travel_month bug that migration 003 fixed.
+    anchor = None
+    if row["anchor_lat"] is not None and row["anchor_lon"] is not None:
+        anchor = AnchorRef(
+            kind="poi" if row["anchor_poi_slug"] else "region",
+            slug=str(row["anchor_poi_slug"] or row["anchor_label"]),
+            label=str(row["anchor_label"]),
+            point=GeoPoint(lat=float(row["anchor_lat"]), lon=float(row["anchor_lon"])),
+        )
 
     return TripBrief(
         request_id=request_id,
@@ -165,4 +196,6 @@ async def load_brief(conn: DbConn, request_id: UUID) -> TripBrief | None:
         # NULL only for requests predating migration 003, where creation month is
         # genuinely the best available guess.
         travel_month=int(row["travel_month"] or row["created_at"].month),
+        anchor=anchor,
+        radius_km=int(row["radius_km"]) if row["radius_km"] is not None else None,
     )

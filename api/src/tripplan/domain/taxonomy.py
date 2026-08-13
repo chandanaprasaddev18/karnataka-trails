@@ -15,7 +15,7 @@ PoiKind = Literal["place", "stay", "activity"]
 PoiStatus = Literal["draft", "published", "archived"]
 PlanningMode = Literal["interest", "location", "district"]
 ComposerName = Literal["llm", "deterministic"]
-TravelSource = Literal["static_haversine", "maps_api"]
+TravelSource = Literal["static_haversine", "osrm", "maps_api"]
 
 PlaceType = Literal[
     "viewpoint",
@@ -48,4 +48,8 @@ TimeOfDay = Literal["sunrise", "morning", "afternoon", "sunset", "evening", "any
 # Routing sources in preference order: the engine uses the first one that has a
 # row for a given pair. Phase 3 ships `maps_api` and it wins automatically,
 # without a data migration or a config change per pair.
-TRAVEL_SOURCE_PREFERENCE: tuple[TravelSource, ...] = ("maps_api", "static_haversine")
+# Best first. A pair measured on the real road network beats a straight-line
+# guess, so `osrm` outranks the placeholder; `maps_api` is reserved for a
+# commercial provider and sits above OSRM only because we would not pay for one
+# unless it were better.
+TRAVEL_SOURCE_PREFERENCE: tuple[TravelSource, ...] = ("maps_api", "osrm", "static_haversine")

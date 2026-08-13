@@ -3,20 +3,25 @@
 This module is the ONLY place where a planning mode's filter lives. All three
 modes run the same query shape and differ in one WHERE clause:
 
-    by Interest (Phase 1)  poi_tags.tag_id matches the requested interests
-    by District (Phase 2)  regions.path LIKE '<district path>%'
-    by Location (Phase 2)  haversine_km(...) < radius, anchored on a POI
+    by Interest  poi_tags matches the requested interests, within the district
+    by District  regions.path LIKE '<district path>%', interests optional
+    by Location  haversine_km(...) <= radius from the anchor, district ignored
 
-Two deliberate asymmetries:
+See `_scope_for`, which is that one clause.
+
+Three deliberate asymmetries:
 
 1. **Places and activities must match an interest; stays must not.** Interest is
    the point of the plan for the things you *do*. A stay is logistics — you need
    somewhere to sleep near the day's cluster whether or not the property happens
    to be tagged 'trekking'. Requiring a tag match on stays produces itineraries
    with nowhere to sleep.
-2. **Untagged rows are excluded from places/activities.** A place nobody has
-   tagged cannot be argued to match a requested interest, so it stays out rather
-   than being padded in.
+2. **Untagged rows are excluded from places/activities — in interest mode only.**
+   A place nobody has tagged cannot be argued to match a requested interest, so it
+   stays out rather than being padded in.
+3. **Outside interest mode, interests rank rather than filter.** "Everything in
+   this district, and I lean towards waterfalls" is a coherent request. Treating
+   the lean as a filter would answer it with an empty trip, which is not.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from tripplan.db import DbConn
 from tripplan.domain.models import (
+    AnchorRef,
     Candidate,
     CandidateSet,
     GeoPoint,
@@ -77,6 +83,63 @@ async def district_path(conn: DbConn, slug: str) -> str | None:
     return str(value) if value is not None else None
 
 
+class _Scope(BaseModel):
+    """The mode-specific half of the retrieval query.
+
+    Extracted so the three modes are visibly one query with one clause swapped,
+    which is the claim `docs/architecture.md` makes. `sql` is built from module
+    constants and fixed placeholder numbers — never from user input, which
+    arrives as bound parameters in `params`.
+    """
+
+    sql: str
+    params: list[Any]
+    order: str
+
+
+def _scope_for(brief: TripBrief, path: str, next_param: int) -> _Scope:
+    """Build the WHERE fragment and ranking that distinguish the planning modes.
+
+    Placeholders start at `next_param` so this composes with the fixed parameters
+    the shared query already binds.
+    """
+    if brief.mode == "location" and brief.anchor is not None and brief.radius_km is not None:
+        # Radius, not district. A location anchor near a district border should
+        # legitimately return places on the other side of it — that is the whole
+        # point of asking "what is near me" instead of "what is in this district".
+        return _Scope(
+            sql=(
+                f"AND haversine_km(p.lat, p.lon, ${next_param}, ${next_param + 1}) "
+                f"<= ${next_param + 2}"
+            ),
+            params=[brief.anchor.point.lat, brief.anchor.point.lon, float(brief.radius_km)],
+            # Closest first, but a strongly matching interest still outranks mere
+            # proximity: a landmark 40 km away beats a lay-by 2 km away.
+            order=(
+                "ORDER BY COALESCE(m.match_weight, 0) DESC, "
+                f"haversine_km(p.lat, p.lon, ${next_param}, ${next_param + 1}) ASC, "
+                "p.data_confidence DESC, p.name"
+            ),
+        )
+
+    scope = _Scope(
+        sql=f"AND r.path LIKE ${next_param} || '%'",
+        params=[path],
+        order="ORDER BY COALESCE(m.match_weight, 0) DESC, p.data_confidence DESC, p.name",
+    )
+    if brief.mode == "district":
+        # District mode asks for the district's best, so confidence leads. Any
+        # interests given are a tiebreaker, not a filter.
+        scope = scope.model_copy(
+            update={
+                "order": (
+                    "ORDER BY p.data_confidence DESC, COALESCE(m.match_weight, 0) DESC, p.name"
+                )
+            }
+        )
+    return scope
+
+
 async def fetch_candidates(
     conn: DbConn,
     brief: TripBrief,
@@ -90,9 +153,14 @@ async def fetch_candidates(
 
     table, detail_cols = _DETAIL_SQL[kind]
     alias = _ALIAS[kind]
-    # Stays are logistics, not interests — see the module docstring.
-    require_tags = kind != "stay"
+    # Stays are logistics, not interests — see the module docstring. And outside
+    # interest mode, NOTHING requires a tag match: "everything in this district"
+    # and "everything near me" are requests about scope, not about taste, so an
+    # interest given in those modes ranks results instead of excluding them.
+    require_tags = kind != "stay" and brief.mode == "interest"
     tag_join = "JOIN" if require_tags else "LEFT JOIN"
+    # The shared query binds $1..$5; the mode's clause continues from $6.
+    scope = _scope_for(brief, path, next_param=6)
 
     rows = await conn.fetch(
         f"""
@@ -126,20 +194,18 @@ async def fetch_candidates(
         LEFT JOIN {table} {alias} ON {alias}.poi_id = p.id
         WHERE p.status = 'published'
           AND p.kind = $2
-          AND r.path LIKE $3 || '%'
-          AND (p.cost_band IS NULL OR p.cost_band <= $4)
-          AND (p.best_months IS NULL OR $5 = ANY(p.best_months))
-        ORDER BY COALESCE(m.match_weight, 0) DESC,
-                 p.data_confidence DESC,
-                 p.name
-        LIMIT $6
+          AND (p.cost_band IS NULL OR p.cost_band <= $3)
+          AND (p.best_months IS NULL OR $4 = ANY(p.best_months))
+          {scope.sql}
+        {scope.order}
+        LIMIT $5
         """,  # noqa: S608 — interpolations are module constants keyed by a Literal
         list(brief.tag_slugs),
         kind,
-        path,
         brief.budget_band,
         brief.travel_month,
         limit,
+        *scope.params,
     )
 
     guides = await _guides_for(conn, [UUID(str(r["id"])) for r in rows])
@@ -290,6 +356,101 @@ async def interest_labels(conn: DbConn, slugs: tuple[str, ...]) -> list[dict[str
     return [{"slug": str(r["slug"]), "label": str(r["label"])} for r in rows]
 
 
+# ---------------------------------------------------------------------------
+# Anchors — what location mode plans around
+# ---------------------------------------------------------------------------
+# An anchor is a published POI or a region we hold, never free coordinates. The
+# picker offers both because "near Mullayanagiri" and "near Mudigere" are equally
+# reasonable ways to say where you are, and only one of them is a POI.
+
+
+async def search_anchors(conn: DbConn, query: str, limit: int = 12) -> list[dict[str, Any]]:
+    """Anchors matching a typed fragment, best first.
+
+    Ranked by how much is actually near them, not by string similarity: a user
+    typing "chik" wants the town they can plan a trip around, not whichever row
+    happens to match earliest. Regions carry a taluk's whole catchment, so they
+    tend to lead — which is the right answer for "where are you staying?".
+    """
+    like = f"%{query.strip().lower()}%"
+    rows = await conn.fetch(
+        """
+        WITH anchors AS (
+            -- Published POIs. Draft rows are excluded for the same reason they
+            -- never reach an itinerary: we have not checked them.
+            SELECT 'poi' AS kind, p.slug, p.name AS label,
+                   r.name || ' · ' || COALESCE(pd.place_type, p.kind) AS sublabel,
+                   p.lat, p.lon
+            FROM pois p
+            JOIN regions r ON r.id = p.region_id
+            LEFT JOIN place_details pd ON pd.poi_id = p.id
+            WHERE p.status = 'published' AND p.kind = 'place'
+            UNION ALL
+            -- Regions with coordinates. A district or taluk without a centroid
+            -- cannot anchor a radius search, so it is not offered.
+            SELECT 'region' AS kind, r.slug, r.name AS label,
+                   initcap(r.kind) AS sublabel,
+                   r.centroid_lat AS lat, r.centroid_lon AS lon
+            FROM regions r
+            WHERE r.centroid_lat IS NOT NULL
+              AND r.centroid_lon IS NOT NULL
+              AND r.kind IN ('district', 'taluk', 'locality')
+        )
+        SELECT a.*, (
+            SELECT count(*) FROM pois n
+            WHERE n.status = 'published'
+              AND n.kind IN ('place', 'activity')
+              AND haversine_km(n.lat, n.lon, a.lat, a.lon) <= 60
+        ) AS nearby
+        FROM anchors a
+        WHERE lower(a.label) LIKE $1 OR a.slug LIKE $1
+        ORDER BY nearby DESC, length(a.label), a.label
+        LIMIT $2
+        """,
+        like,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def resolve_anchor(conn: DbConn, slug: str) -> tuple[AnchorRef, str] | None:
+    """An anchor slug to (anchor, district slug), or None if we do not hold it.
+
+    The district comes back too because every itinerary still names one — location
+    mode derives it from where the anchor sits rather than asking again.
+    """
+    row = await conn.fetchrow(
+        """
+        SELECT 'poi' AS kind, p.slug, p.name AS label, p.lat, p.lon, r.path
+        FROM pois p JOIN regions r ON r.id = p.region_id
+        WHERE p.slug = $1 AND p.status = 'published'
+        UNION ALL
+        SELECT 'region' AS kind, r.slug, r.name AS label,
+               r.centroid_lat AS lat, r.centroid_lon AS lon, r.path
+        FROM regions r
+        WHERE r.slug = $1 AND r.centroid_lat IS NOT NULL
+        LIMIT 1
+        """,
+        slug,
+    )
+    if row is None:
+        return None
+
+    # The district is the second path segment: /karnataka/chikkamagaluru/mudigere/
+    # -> chikkamagaluru. Derived from the materialised ancestry rather than a
+    # second query, which is what `path` is for.
+    segments = [s for s in str(row["path"]).split("/") if s]
+    district_slug = segments[1] if len(segments) > 1 else segments[0]
+
+    anchor = AnchorRef(
+        kind="poi" if row["kind"] == "poi" else "region",
+        slug=str(row["slug"]),
+        label=str(row["label"]),
+        point=GeoPoint(lat=float(row["lat"]), lon=float(row["lon"])),
+    )
+    return anchor, district_slug
+
+
 async def region_ref(conn: DbConn, slug: str) -> RegionRef | None:
     row = await conn.fetchrow("SELECT slug, name, media FROM regions WHERE slug = $1", slug)
     if row is None:
@@ -319,7 +480,14 @@ class Feasibility(BaseModel):
     """Whether a brief can be planned, and if not, what would work."""
 
     ok: bool
-    reason: Literal["ok", "out_of_season", "budget_too_low", "nothing_tagged", "no_data"] = "ok"
+    reason: Literal[
+        "ok",
+        "out_of_season",
+        "budget_too_low",
+        "nothing_tagged",
+        "nothing_in_radius",
+        "no_data",
+    ] = "ok"
     candidates: int = 0
     # The month that was asked for, so the explanation can name it and the client
     # can show it back. A plain field rather than a private attribute: this is
@@ -331,6 +499,9 @@ class Feasibility(BaseModel):
     suggested_interests: list[dict[str, str]] = Field(default_factory=list)
     # The cheapest band that would unblock the brief, when budget is the blocker.
     min_budget_band: int | None = None
+    # Location mode: a wider radius that would find something, when the chosen one
+    # found nothing.
+    suggested_radius_km: int | None = None
 
     def explain(self) -> str:
         """A message written for the person who asked, not for the logs."""
@@ -349,6 +520,15 @@ class Feasibility(BaseModel):
             return (
                 "Everything that matches is above your budget. The cheapest option "
                 f"for this month sits at band {self.min_budget_band} of 5."
+            )
+        if self.reason == "nothing_in_radius":
+            return (
+                "Nothing we have published falls within that radius. "
+                + (
+                    f"Widening it to {self.suggested_radius_km} km would find something."
+                    if self.suggested_radius_km
+                    else "Try a different starting point."
+                )
             )
         if self.reason == "nothing_tagged":
             return "Nothing in our data for this district matches those interests yet."
@@ -380,49 +560,56 @@ async def feasibility(conn: DbConn, brief: TripBrief) -> Feasibility:
     if path is None:
         return Feasibility(ok=False, reason="no_data")
 
-    # Counts over the district's published places/activities, sliced by which
-    # constraint is applied. Comparing the slices identifies the blocker.
+    # Counts over the published places/activities IN SCOPE, sliced by which
+    # constraint is applied. Comparing the slices identifies the blocker. Scope is
+    # the same mode-specific clause retrieval uses, from the same function, so the
+    # two can never disagree about what was considered.
+    scope = _scope_for(brief, path, next_param=5)
     row = await conn.fetchrow(
-        """
+        f"""
         WITH scoped AS (
             SELECT p.id, p.cost_band, p.best_months,
-                   EXISTS (
+                   -- Outside interest mode nothing is excluded for lacking a tag,
+                   -- so the diagnosis must use the same rule retrieval does or
+                   -- the two would disagree about why a brief failed.
+                   ($4 OR EXISTS (
                        SELECT 1 FROM poi_tags pt
                        JOIN interest_tags it ON it.id = pt.tag_id
                        WHERE pt.poi_id = p.id AND it.slug = ANY($1::text[])
-                   ) AS matches_interest
+                   )) AS matches_interest
             FROM pois p
             JOIN regions r ON r.id = p.region_id
             WHERE p.status = 'published'
               AND p.kind IN ('place', 'activity')
-              AND r.path LIKE $2 || '%'
+              {scope.sql}
         )
         SELECT
             count(*) AS published_in_district,
             count(*) FILTER (WHERE matches_interest) AS tagged,
             count(*) FILTER (
                 WHERE matches_interest
-                  AND (best_months IS NULL OR $3 = ANY(best_months))
+                  AND (best_months IS NULL OR $2 = ANY(best_months))
             ) AS in_season,
             count(*) FILTER (
                 WHERE matches_interest
-                  AND (cost_band IS NULL OR cost_band <= $4)
+                  AND (cost_band IS NULL OR cost_band <= $3)
             ) AS in_budget,
             count(*) FILTER (
                 WHERE matches_interest
-                  AND (best_months IS NULL OR $3 = ANY(best_months))
-                  AND (cost_band IS NULL OR cost_band <= $4)
+                  AND (best_months IS NULL OR $2 = ANY(best_months))
+                  AND (cost_band IS NULL OR cost_band <= $3)
             ) AS exact,
             min(cost_band) FILTER (
                 WHERE matches_interest
-                  AND (best_months IS NULL OR $3 = ANY(best_months))
+                  AND (best_months IS NULL OR $2 = ANY(best_months))
             ) AS cheapest_in_season
         FROM scoped
-        """,
+        """,  # noqa: S608 — the scope clause is a module constant; values are bound
         list(brief.tag_slugs),
-        path,
         brief.travel_month,
         brief.budget_band,
+        brief.mode != "interest",
+        *scope.params,
     )
     assert row is not None
 
@@ -436,7 +623,15 @@ async def feasibility(conn: DbConn, brief: TripBrief) -> Feasibility:
 
     # Attribute the failure to a single cause, cheapest fix first.
     if int(row["published_in_district"]) == 0:
-        result.reason = "no_data"
+        # An empty district means unseeded data; an empty RADIUS means the user
+        # drew too small a circle, which is a different message and a different
+        # fix. Saying "seed the database" to someone who picked a quiet village
+        # sends them somewhere they cannot act.
+        if brief.mode == "location":
+            result.reason = "nothing_in_radius"
+            result.suggested_radius_km = await _radius_that_would_work(conn, brief)
+        else:
+            result.reason = "no_data"
         return result
     if int(row["tagged"]) == 0:
         result.reason = "nothing_tagged"
@@ -454,27 +649,41 @@ async def feasibility(conn: DbConn, brief: TripBrief) -> Feasibility:
 
 
 async def _months_for_interests(conn: DbConn, brief: TripBrief, path: str) -> list[int]:
-    """Months in which the requested interests have something to offer."""
+    """Months in which the brief's subject has something to offer.
+
+    "Subject" is the requested interests when there are any, and everything in
+    scope when there are not — district mode with no interests can still be out of
+    season, and answering "try January" needs the same question asked without a
+    tag filter.
+    """
+    scope = _scope_for(brief, path, next_param=3)
+    tag_filter = (
+        """AND EXISTS (
+                  SELECT 1 FROM poi_tags pt
+                  JOIN interest_tags it ON it.id = pt.tag_id
+                  WHERE pt.poi_id = p.id AND it.slug = ANY($1::text[])
+              )"""
+        if brief.tag_slugs
+        else ""
+    )
     rows = await conn.fetch(
-        """
+        f"""
         SELECT m FROM generate_series(1, 12) AS m
         WHERE EXISTS (
             SELECT 1 FROM pois p
             JOIN regions r ON r.id = p.region_id
-            JOIN poi_tags pt ON pt.poi_id = p.id
-            JOIN interest_tags it ON it.id = pt.tag_id
             WHERE p.status = 'published'
               AND p.kind IN ('place', 'activity')
-              AND r.path LIKE $2 || '%'
-              AND it.slug = ANY($1::text[])
-              AND (p.cost_band IS NULL OR p.cost_band <= $3)
+              AND (p.cost_band IS NULL OR p.cost_band <= $2)
               AND (p.best_months IS NULL OR m = ANY(p.best_months))
+              {tag_filter}
+              {scope.sql}
         )
         ORDER BY m
-        """,
+        """,  # noqa: S608 — fragments are module constants; values are bound
         list(brief.tag_slugs),
-        path,
         brief.budget_band,
+        *scope.params,
     )
     return [int(r["m"]) for r in rows]
 
@@ -485,8 +694,9 @@ async def _interests_for_month(conn: DbConn, brief: TripBrief, path: str) -> lis
     Filtered to those with enough to fill a day, so we do not redirect someone
     onto an interest backed by a single POI.
     """
+    scope = _scope_for(brief, path, next_param=3)
     rows = await conn.fetch(
-        """
+        f"""
         SELECT it.slug, it.label, count(*) AS n
         FROM pois p
         JOIN regions r ON r.id = p.region_id
@@ -494,18 +704,50 @@ async def _interests_for_month(conn: DbConn, brief: TripBrief, path: str) -> lis
         JOIN interest_tags it ON it.id = pt.tag_id
         WHERE p.status = 'published'
           AND p.kind IN ('place', 'activity')
-          AND r.path LIKE $1 || '%'
           AND it.kind = 'interest'
           AND it.is_active
-          AND (p.cost_band IS NULL OR p.cost_band <= $2)
-          AND (p.best_months IS NULL OR $3 = ANY(p.best_months))
+          AND (p.cost_band IS NULL OR p.cost_band <= $1)
+          AND (p.best_months IS NULL OR $2 = ANY(p.best_months))
+          {scope.sql}
         GROUP BY it.slug, it.label, it.display_order
         HAVING count(*) >= 3
         ORDER BY count(*) DESC, it.display_order
         LIMIT 6
-        """,
-        path,
+        """,  # noqa: S608 — fragments are module constants; values are bound
         brief.budget_band,
         brief.travel_month,
+        *scope.params,
     )
     return [{"slug": str(r["slug"]), "label": str(r["label"])} for r in rows]
+
+
+async def _radius_that_would_work(conn: DbConn, brief: TripBrief) -> int | None:
+    """The smallest sensible radius with enough nearby to plan, or None.
+
+    Offered instead of a bare "nothing found": the fix for an empty 25 km search
+    is almost always a wider one, and the user should not have to guess how much
+    wider. Rounded to the increments the slider actually offers.
+    """
+    if brief.anchor is None:
+        return None
+    for candidate_radius in (25, 50, 75, 100, 150, 200):
+        if brief.radius_km is not None and candidate_radius <= brief.radius_km:
+            continue
+        found = await conn.fetchval(
+            """
+            SELECT count(*) FROM pois p
+            WHERE p.status = 'published'
+              AND p.kind IN ('place', 'activity')
+              AND (p.cost_band IS NULL OR p.cost_band <= $1)
+              AND (p.best_months IS NULL OR $2 = ANY(p.best_months))
+              AND haversine_km(p.lat, p.lon, $3, $4) <= $5
+            """,
+            brief.budget_band,
+            brief.travel_month,
+            brief.anchor.point.lat,
+            brief.anchor.point.lon,
+            float(candidate_radius),
+        )
+        if int(found or 0) >= 3:
+            return candidate_radius
+    return None

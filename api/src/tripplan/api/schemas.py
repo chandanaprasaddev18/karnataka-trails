@@ -29,18 +29,47 @@ class InterestOut(BaseModel):
     photo_caption: str | None = None
 
 
+class AnchorOut(BaseModel):
+    """Something a location-mode trip can be planned around."""
+
+    kind: Literal["poi", "region"]
+    slug: str
+    label: str
+    # "Mudigere taluk" or "Chikkamagaluru district" — two anchors can share a
+    # name, and the picker has to be able to tell them apart.
+    sublabel: str
+    lat: float
+    lon: float
+    # How much we can plan there: published places and activities within 60 km.
+    # Shown in the picker so nobody chooses an anchor with nothing around it.
+    nearby: int = 0
+
+
 class PlanRequestIn(BaseModel):
-    """What the wizard posts. Validated here so a bad request is a 422, not a job failure."""
+    """What the wizard posts. Validated here so a bad request is a 422, not a job failure.
+
+    One body for all three modes. Which fields are required depends on `mode`, and
+    that rule lives in `engine/brief.py` rather than here, so the CLI is held to
+    exactly the same contract as HTTP.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    interests: list[str] = Field(min_length=1)
+    mode: Literal["interest", "location", "district"] = "interest"
+    # Required in interest mode; a ranking hint in the other two, hence no
+    # min_length. The brief builder rejects an empty list where it matters.
+    interests: list[str] = Field(default_factory=list)
     days: int = Field(ge=1, le=14)
     party_size: int = Field(ge=1, le=30)
     budget_band: int = Field(ge=1, le=5)
     origin: str = "Bengaluru"
     district: str = "chikkamagaluru"
     travel_month: int | None = Field(default=None, ge=1, le=12)
+    # Location mode: the slug of a POI or region from /api/anchors. A slug rather
+    # than raw coordinates, so the anchor is always something we actually hold —
+    # free-text coordinates would let a caller plan around the middle of the sea.
+    anchor: str | None = None
+    radius_km: int | None = Field(default=None, ge=5, le=200)
 
 
 class PlanAcceptedOut(BaseModel):

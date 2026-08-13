@@ -20,6 +20,7 @@ from tripplan.jobs.worker import run_once, run_worker
 from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging
 from tripplan.render import render_text
+from tripplan.store import pois as poi_store
 from tripplan.store.itineraries import create_request, save_itinerary
 from tripplan.store.photos import fetch_photos
 from tripplan.store.seed import (
@@ -173,6 +174,15 @@ def plan(
     origin: str = "Bengaluru",
     district: str = DEFAULT_DISTRICT,
     month: int | None = typer.Option(None, help="Travel month 1-12; defaults to now."),
+    mode: str = typer.Option(
+        "interest",
+        help="interest (tags filter), district (whole district), "
+        "location (radius around an anchor).",
+    ),
+    anchor: str | None = typer.Option(
+        None, help="Location mode: slug of a published place or a region to plan around."
+    ),
+    radius: int | None = typer.Option(None, help="Location mode: radius in km (default 60)."),
     save: bool = typer.Option(True, help="Persist the request and itinerary."),
     as_json: bool = typer.Option(False, "--json", help="Emit the raw payload instead of cards."),
     no_llm: bool = typer.Option(
@@ -187,14 +197,30 @@ def plan(
     async def _run() -> None:
         cfg = get_settings()
         try:
+            # Location mode resolves its anchor against the database, exactly as
+            # the API does, so the CLI cannot plan around a point we do not hold.
+            resolved_anchor = None
+            district_slug = district
+            if mode == "location":
+                if not anchor:
+                    raise BriefError("location mode needs --anchor")
+                async with connect(cfg) as conn:
+                    found = await poi_store.resolve_anchor(conn, anchor)
+                if found is None:
+                    raise BriefError(f"no published place or region with slug '{anchor}'")
+                resolved_anchor, district_slug = found
+
             brief = build_brief(
-                interests=interests.split(","),
-                district_slug=district,
+                interests=[i for i in interests.split(",") if i] if interests else [],
+                district_slug=district_slug,
                 days=days,
                 party_size=people,
                 budget_band=budget,
                 origin_label=origin,
                 travel_month=month,
+                mode=mode,  # type: ignore[arg-type]  # validated by build_brief
+                anchor=resolved_anchor,
+                radius_km=radius,
             )
         except BriefError as exc:
             typer.secho(f"bad request: {exc}", fg=typer.colors.RED, err=True)

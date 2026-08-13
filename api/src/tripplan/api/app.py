@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, 
 from fastapi.middleware.cors import CORSMiddleware
 
 from tripplan.api.schemas import (
+    AnchorOut,
     DistrictOut,
     HealthOut,
     InterestOut,
@@ -199,6 +200,33 @@ async def list_interests(conn: Conn) -> list[InterestOut]:
     return out
 
 
+@app.get("/api/anchors", response_model=list[AnchorOut], tags=["taxonomy"])
+async def list_anchors(conn: Conn, q: str = "") -> list[AnchorOut]:
+    """Places and localities a location-mode trip can be planned around.
+
+    Server-side search rather than shipping the whole list to the browser: it will
+    be every published POI in Karnataka by Phase 2's end, and `nearby` needs a
+    radius count per row that only the database can do cheaply.
+
+    An empty query returns the anchors with the most around them, which is a
+    better empty state than nothing at all — most people recognise a district
+    town faster than they can spell it.
+    """
+    rows = await poi_store.search_anchors(conn, q)
+    return [
+        AnchorOut(
+            kind="poi" if r["kind"] == "poi" else "region",
+            slug=str(r["slug"]),
+            label=str(r["label"]),
+            sublabel=str(r["sublabel"]),
+            lat=float(r["lat"]),
+            lon=float(r["lon"]),
+            nearby=int(r["nearby"] or 0),
+        )
+        for r in rows
+    ]
+
+
 @app.get("/api/districts", response_model=list[DistrictOut], tags=["taxonomy"])
 async def list_districts(conn: Conn) -> list[DistrictOut]:
     """Districts with published content, for the home page cards.
@@ -298,15 +326,37 @@ async def create_plan(
     impossible to add later without a backfill. The client echoes the token back
     via `X-Session-Token` on subsequent requests.
     """
+    # Location mode: resolve the anchor slug to a point we hold, and take the
+    # district from where that anchor sits rather than from the request. A caller
+    # cannot plan around coordinates we have never heard of.
+    anchor = None
+    district_slug = payload.district
+    if payload.mode == "location":
+        if not payload.anchor:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="location mode needs an anchor; pick one from /api/anchors",
+            )
+        resolved = await poi_store.resolve_anchor(conn, payload.anchor)
+        if resolved is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"we do not have a place called '{payload.anchor}'",
+            )
+        anchor, district_slug = resolved
+
     try:
         brief = build_brief(
             interests=payload.interests,
-            district_slug=payload.district,
+            district_slug=district_slug,
             days=payload.days,
             party_size=payload.party_size,
             budget_band=payload.budget_band,
             origin_label=payload.origin,
             travel_month=payload.travel_month,
+            mode=payload.mode,
+            anchor=anchor,
+            radius_km=payload.radius_km,
         )
     except BriefError as exc:
         # A bad origin or an empty interest list is the caller's problem, and it
@@ -327,6 +377,7 @@ async def create_plan(
                 "suggested_months": verdict.suggested_months,
                 "suggested_interests": verdict.suggested_interests,
                 "min_budget_band": verdict.min_budget_band,
+                "suggested_radius_km": verdict.suggested_radius_km,
             },
         )
 

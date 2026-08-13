@@ -106,6 +106,24 @@ class GuideRef(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class AnchorRef(BaseModel):
+    """Where "around here" is, for location mode.
+
+    Deliberately a labelled POINT rather than a POI reference. Two things can
+    honestly anchor a trip: a place we publish, and a town we do not — Mudigere
+    is a locality, not a point of interest, and inventing a POI row for it to
+    satisfy a foreign key would be exactly the kind of fiction the rest of this
+    schema refuses. `kind` records which it was, so the audit trail stays truthful.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["poi", "region"]
+    slug: str
+    label: str
+    point: GeoPoint
+
+
 class TripBrief(BaseModel):
     """A validated, defaulted trip request. The engine reads only this."""
 
@@ -114,7 +132,13 @@ class TripBrief(BaseModel):
     request_id: UUID | None = None
     mode: PlanningMode
     tag_slugs: tuple[str, ...]
+    # Always set, in every mode. In location mode it is DERIVED from the anchor's
+    # region rather than chosen, because the itinerary still has to say which
+    # district it is in and the stay/guide copy reads better with a real name.
     district_slug: str
+    # Location mode only. The engine reads both or neither.
+    anchor: AnchorRef | None = None
+    radius_km: int | None = None
     days: int = Field(ge=1, le=14)
     party_size: int = Field(ge=1, le=30)
     budget_band: int = Field(ge=1, le=5)
@@ -330,6 +354,11 @@ class BriefSummary(BaseModel):
     budget_band: int
     origin: OriginRef
     district: RegionRef
+    # Location mode only, so the itinerary can say what it was planned around.
+    # Additive fields: an older client ignores them, which is why adding them does
+    # not bump SCHEMA_VERSION.
+    anchor: AnchorRef | None = None
+    radius_km: int | None = None
 
 
 class ItinerarySummary(BaseModel):

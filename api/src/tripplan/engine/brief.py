@@ -11,13 +11,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from tripplan.domain.models import OriginRef, TripBrief
+from tripplan.domain.models import AnchorRef, OriginRef, TripBrief
 from tripplan.domain.origins import resolve_origin
 from tripplan.domain.taxonomy import PlanningMode
 
 
 class BriefError(ValueError):
     """Raised when a request cannot be normalised into a valid brief."""
+
+
+DEFAULT_RADIUS_KM = 60
 
 
 def build_brief(
@@ -30,11 +33,28 @@ def build_brief(
     origin_label: str,
     travel_month: int | None = None,
     mode: PlanningMode = "interest",
+    anchor: AnchorRef | None = None,
+    radius_km: int | None = None,
     request_id: UUID | None = None,
 ) -> TripBrief:
     cleaned = tuple(dict.fromkeys(i.strip().lower() for i in interests if i.strip()))
+
+    # Each mode requires exactly one thing of the user, and it is a different
+    # thing. Enforced here rather than in the API so the CLI cannot bypass it.
     if mode == "interest" and not cleaned:
         raise BriefError("at least one interest is required for the interest planning mode")
+    if mode == "location" and anchor is None:
+        raise BriefError("location mode needs an anchor to plan around")
+    if mode != "location" and anchor is not None:
+        raise BriefError(f"an anchor is meaningless in {mode} mode")
+
+    # Interests are optional outside interest mode, and there they RANK rather
+    # than filter — see store/pois.py. "Everything in this district, but I like
+    # waterfalls" is a coherent request; "nothing in this district matches
+    # waterfalls, so here is an empty trip" is not.
+    radius = radius_km if mode == "location" else None
+    if mode == "location" and radius is None:
+        radius = DEFAULT_RADIUS_KM
 
     try:
         origin = resolve_origin(origin_label)
@@ -56,6 +76,8 @@ def build_brief(
             budget_band=budget_band,
             origin=OriginRef.from_origin(origin),
             travel_month=month,
+            anchor=anchor,
+            radius_km=radius,
         )
     except ValueError as exc:
         raise BriefError(str(exc)) from exc

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SearchBar } from "@/components/SearchBar";
 
 /**
  * The application shell: a fixed left rail on desktop, a drawer on mobile.
@@ -111,7 +112,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        {/* The search sits above the content rather than inside the rail: it is
+            about the main column, and at 248px the rail cannot hold a usable
+            input. Hidden on mobile, where the drawer button owns that row. */}
+        <div className="hidden border-b border-line px-4 py-3 sm:px-6 lg:block lg:px-8">
+          <SearchBar />
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

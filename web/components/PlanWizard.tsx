@@ -69,9 +69,12 @@ const COPY: Record<PlanMode, { eyebrow: string; title: string; blurb: string }> 
 export function PlanWizard({
   mode,
   initialInterest,
+  initialAnchor,
 }: {
   mode: PlanMode;
   initialInterest?: string;
+  /** Slug handed over by the global search, preselected once it resolves. */
+  initialAnchor?: string;
 }) {
   const router = useRouter();
 
@@ -82,7 +85,7 @@ export function PlanWizard({
   const [district, setDistrict] = useState("chikkamagaluru");
   const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialAnchor ?? "");
   const [radius, setRadius] = useState(50);
 
   // shared trip shape
@@ -128,6 +131,15 @@ export function PlanWizard({
       if (debounce.current) clearTimeout(debounce.current);
     };
   }, [query, mode]);
+
+  // Preselect the anchor the search handed over. Matched against the server's
+  // results rather than trusted from the URL, so a slug we do not hold selects
+  // nothing instead of submitting an anchor the engine will reject.
+  useEffect(() => {
+    if (!initialAnchor || anchor) return;
+    const match = anchors.find((a) => a.slug === initialAnchor);
+    if (match) setAnchor(match);
+  }, [initialAnchor, anchors, anchor]);
 
   const toggle = (slug: string) =>
     setSelected((current) =>

@@ -143,29 +143,31 @@ export function PlanProgress({ requestId }: { requestId: string }) {
   return <ItineraryView itinerary={status.itinerary} />;
 }
 
-/** Page padding for the non-itinerary states; ItineraryView renders full-bleed. */
+/** Page padding for the non-itinerary states; ItineraryView brings its own. */
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">{children}</div>;
+  return (
+    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+  );
 }
 
 function Skeleton({ message, attempt }: { message: string; attempt?: number }) {
   return (
     <div className="space-y-6" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-marigold" />
-        <p className="text-sm text-muted">{message}</p>
+        <span className="h-2 w-2 animate-pulse rounded-full bg-gold" />
+        <p className="text-[14px] text-cream">{message}</p>
       </div>
       {attempt && (
-        <p className="text-xs text-muted">Retrying after a hiccup (attempt {attempt}).</p>
+        <p className="text-[12px] text-muted-dim">Retrying after a hiccup (attempt {attempt}).</p>
       )}
       <div className="space-y-3">
         {[0, 1, 2].map((row) => (
-          <div key={row} className="flex gap-4 rounded-2xl border border-line bg-card p-4">
-            <div className="h-20 w-28 shrink-0 animate-pulse rounded-lg bg-line" />
+          <div key={row} className="panel flex gap-4 p-4">
+            <div className="h-20 w-28 shrink-0 animate-pulse rounded-lg bg-ink-700" />
             <div className="flex-1 space-y-2.5 pt-1">
-              <div className="h-4 w-1/3 animate-pulse rounded bg-line" />
-              <div className="h-3 w-2/3 animate-pulse rounded bg-line" />
-              <div className="h-3 w-1/2 animate-pulse rounded bg-line" />
+              <div className="h-4 w-1/3 animate-pulse rounded bg-ink-700" />
+              <div className="h-3 w-2/3 animate-pulse rounded bg-ink-700" />
+              <div className="h-3 w-1/2 animate-pulse rounded bg-ink-700" />
             </div>
           </div>
         ))}
@@ -184,10 +186,10 @@ function Notice({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border border-terracotta/30 bg-terracotta-soft p-5">
-      <h2 className="font-display font-semibold text-terracotta">{title}</h2>
-      <p className="text-sm text-ink/80">{body}</p>
-      {action && <div className="pt-1 text-sm text-terracotta">{action}</div>}
+    <div className="space-y-2 rounded-2xl border border-rust/35 bg-rust-soft p-5">
+      <h2 className="font-display text-[17px] font-semibold text-rust">{title}</h2>
+      <p className="text-[13.5px] text-cream/85">{body}</p>
+      {action && <div className="pt-1 text-[13.5px] text-rust">{action}</div>}
     </div>
   );
 }

@@ -62,5 +62,19 @@ labelled as such. That ratio is the point: the gaps are honest.
 
 ## Current status
 
-Phase 1: *Plan by Interest*, Chikkamagaluru, card output, static travel-time
-estimates, no auth. See the phase map in `CLAUDE.md`.
+**Phase 1** — Plan by Interest, Chikkamagaluru, card output, no auth. Done.
+
+**Phase 2** — Plan by Location (radius around any place or town we hold) and Plan
+by District (the whole district, interests optional). Done, front to back. All
+three modes are one engine differing in a single WHERE clause; see
+`_scope_for` in `api/src/tripplan/store/pois.py`.
+
+**Phase 3** — Real road distances from OSRM, with the static estimator kept as a
+labelled fallback, plus a route map drawn from the returned road geometry. Done.
+An interactive basemap is not built: tiles would put a third-party request on
+every page view.
+
+**Phases 4-5** — Booking and marketplace: designed for, not built. Both need real
+partner data, and inventing it is the one thing this app refuses to do.
+
+See the phase map in `CLAUDE.md`.

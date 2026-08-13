@@ -307,6 +307,11 @@ def assemble(
             budget_band=brief.budget_band,
             origin=brief.origin,
             district=district,
+            # Carried through so a location-mode itinerary can say what it was
+            # planned around. Without these the payload was indistinguishable
+            # from a district plan that happened to pick the same stops.
+            anchor=brief.anchor,
+            radius_km=brief.radius_km,
         ),
         summary=ItinerarySummary(
             title=title,

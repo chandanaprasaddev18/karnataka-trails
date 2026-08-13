@@ -34,11 +34,12 @@ type Tone = "place" | "stay" | "activity" | "district";
 
 const FALLBACK: Record<Tone, string> = {
   // Distinct enough to read as intentional, muted enough not to fight the real
-  // photographs sitting next to them.
-  place: "from-teal/70 to-navy",
-  activity: "from-terracotta/70 to-navy",
-  stay: "from-navy-soft to-navy",
-  district: "from-marigold/60 to-navy",
+  // photographs sitting next to them. On a dark ground these are deliberately
+  // dim: a bright block would draw more attention than the photographs do.
+  place: "from-teal/35 to-ink-900",
+  activity: "from-rust/30 to-ink-900",
+  stay: "from-ink-700 to-ink-900",
+  district: "from-gold/25 to-ink-900",
 };
 
 export function PhotoFrame({

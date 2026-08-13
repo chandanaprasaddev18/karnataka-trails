@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PhotoFrame, firstPhoto } from "@/components/PhotoFrame";
+import { RouteMap } from "@/components/RouteMap";
 import { formatDistance, formatDuration, formatMoney, titleCase } from "@/lib/format";
 import type {
   Itinerary,
@@ -19,207 +20,269 @@ import type {
  * no re-derived totals, so what a reader sees cannot disagree with what was
  * stored. Paise are divided by 100 for display and nothing else.
  *
+ * Laid out as the reference design does: the plan on the left, and a rail on the
+ * right holding the day's route map and its timeline. The rail exists because
+ * those two answer the questions people actually ask on the road — "what is next"
+ * and "how far" — and they should not require scrolling past the prose.
+ *
  * A client component only because of the day tabs; everything else is static.
  */
 export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
   const { summary, brief, days, return_leg: returnLeg } = itinerary;
-  const [activeDay, setActiveDay] = useState<number | "all">("all");
-  const shown = activeDay === "all" ? days : days.filter((d) => d.day_number === activeDay);
+  const [activeDay, setActiveDay] = useState<number>(days[0]?.day_number ?? 1);
+  const current = days.find((d) => d.day_number === activeDay) ?? days[0];
   const heroPhoto = firstPhoto(brief.district.media) ?? firstDayPhoto(days);
+  const measured = itinerary.days.some((d) => d.travel?.source === "osrm");
 
   return (
-    <article>
-      {/* --- hero ---------------------------------------------------------- */}
-      <header className="relative bg-navy">
-        <PhotoFrame
-          photo={heroPhoto}
-          alt={`${brief.district.name}`}
-          tone="district"
-          variant="cover"
-          rounded="rounded-none"
-          sizes="100vw"
-          priority
-          showCredit={false}
-        />
-        {/* Scrims, in order. A single vertical gradient left the eyebrow sitting on
-            whatever the photograph happened to be doing at the top — unreadable on
-            a bright sky. A flat scrim heavy enough to fix that erased the photo
-            entirely. So: a light flat floor, a HORIZONTAL ramp that darkens the
-            text column while letting the right side of the image read, and a short
-            bottom fade into the cream below. Text stays legible on any photograph
-            and the photograph is still visible. */}
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-gradient-to-r from-navy from-25% via-navy/75 to-transparent"
-        />
-        {/* On a phone the text spans the full width, so the horizontal ramp runs
-            out before the text does and the eyebrow ends up on open sky. A flat
-            scrim would erase the photograph on a wide screen, so it is scoped to
-            small viewports where there is no "clear side" to protect. */}
-        <div aria-hidden className="absolute inset-0 bg-navy/45 sm:hidden" />
-        <div
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-navy to-transparent"
-        />
-        <div className="relative mx-auto max-w-6xl px-5 pt-16 pb-12 sm:px-8">
-          <p className="eyebrow text-marigold">
-            {brief.days} {brief.days === 1 ? "day" : "days"} ·{" "}
-            {brief.interests.map((i) => i.label).join(" + ")}
-          </p>
-          <h1 className="mt-3 max-w-3xl font-display text-3xl leading-tight font-semibold text-cream sm:text-4xl">
-            {summary.title}
-          </h1>
-          <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-dim">
-            <span>
-              {brief.party_size} {brief.party_size === 1 ? "traveller" : "travellers"}
-            </span>
-            <Dot />
-            <span>from {brief.origin.label}</span>
-            <Dot />
-            <span>{brief.district.name}</span>
-          </p>
-          {summary.narrative && (
-            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-cream/85">
-              {summary.narrative}
+    <article className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 lg:px-8">
+      {/* --- header ---------------------------------------------------------- */}
+      <header className="relative overflow-hidden rounded-2xl border border-line">
+        <div className="relative min-h-[260px]">
+          <PhotoFrame
+            photo={heroPhoto}
+            alt={brief.district.name}
+            tone="district"
+            variant="cover"
+            rounded="rounded-none"
+            sizes="100vw"
+            priority
+            showCredit={false}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/85 to-ink-950/25"
+          />
+          <div className="relative p-6 sm:p-8">
+            <p className="eyebrow text-gold">
+              {brief.days} {brief.days === 1 ? "day" : "days"}
+              {brief.interests.length > 0 && ` · ${brief.interests.map((i) => i.label).join(" + ")}`}
+              {brief.mode === "district" && brief.interests.length === 0 && " · whole district"}
+              {brief.anchor && ` · around ${brief.anchor.label}`}
+              {brief.radius_km && ` · ${brief.radius_km} km`}
             </p>
-          )}
+            <h1 className="mt-2 max-w-2xl font-display text-[28px] leading-tight font-bold sm:text-[36px]">
+              {summary.title}
+            </h1>
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted">
+              <span>
+                {brief.party_size} {brief.party_size === 1 ? "traveller" : "travellers"}
+              </span>
+              <Dot />
+              <span>from {brief.origin.label}</span>
+              <Dot />
+              <span>{brief.district.name}</span>
+            </p>
+            {summary.narrative && (
+              <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-cream/85">
+                {summary.narrative}
+              </p>
+            )}
 
-          <dl className="mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
-            <Stat label="Total driving" value={formatDistance(summary.total_distance_km)} />
-            <Stat label="Time on the road" value={formatDuration(summary.total_travel_minutes)} />
-            <Stat
-              label="Estimated cost"
-              value={formatMoney(summary.estimated_cost)}
-              hint="whole party · excl. transport"
-            />
-          </dl>
-          {heroPhoto && (
-            <p className="mt-4 text-[10px] text-cream/50">
-              Photo © {heroPhoto.artist} · {heroPhoto.license} ·{" "}
-              <a
-                href={heroPhoto.source_page}
-                target="_blank"
-                rel="noopener noreferrer license"
-                className="underline"
-              >
-                Wikimedia Commons
-              </a>
-            </p>
-          )}
+            <dl className="mt-6 grid max-w-2xl grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <Stat label="Total driving" value={formatDistance(summary.total_distance_km)} />
+              <Stat
+                label="Time on the road"
+                value={formatDuration(summary.total_travel_minutes)}
+                hint={measured ? "measured on real roads" : "estimated"}
+              />
+              <Stat
+                label="Estimated cost"
+                value={formatMoney(summary.estimated_cost)}
+                hint="whole party · excl. transport"
+              />
+            </dl>
+            {heroPhoto && (
+              <p className="mt-4 text-[10px] text-muted-dim">
+                Photo © {heroPhoto.artist} · {heroPhoto.license} ·{" "}
+                <a
+                  href={heroPhoto.source_page}
+                  target="_blank"
+                  rel="noopener noreferrer license"
+                  className="underline"
+                >
+                  Wikimedia Commons
+                </a>
+              </p>
+            )}
+          </div>
         </div>
       </header>
 
-      <TripGallery days={days} />
+      {summary.warnings.length > 0 && <Warnings warnings={summary.warnings} />}
 
-      <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
-        {summary.warnings.length > 0 && <Warnings warnings={summary.warnings} />}
-
-        {/* --- day tabs ---------------------------------------------------- */}
-        <div className="mt-8 flex flex-wrap items-center gap-2">
-          <Tab on={activeDay === "all"} onClick={() => setActiveDay("all")}>
-            Whole trip
+      {/* --- day tabs -------------------------------------------------------- */}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        {days.map((day) => (
+          <Tab
+            key={day.day_number}
+            on={activeDay === day.day_number}
+            onClick={() => setActiveDay(day.day_number)}
+          >
+            Day {day.day_number}
+            {day.travel && (
+              <span className="ml-2 font-mono text-[10.5px] opacity-70">
+                {formatDistance(day.travel.distance_km)}
+              </span>
+            )}
           </Tab>
-          {days.map((day) => (
-            <Tab
-              key={day.day_number}
-              on={activeDay === day.day_number}
-              onClick={() => setActiveDay(day.day_number)}
-            >
-              Day {day.day_number}
-            </Tab>
-          ))}
-        </div>
-
-        <ol className="mt-6 space-y-8">
-          {shown.map((day) => (
-            <li key={day.day_number}>
-              <DayBlock day={day} />
-            </li>
-          ))}
-        </ol>
-
-        {returnLeg && activeDay === "all" && (
-          <section className="mt-8 rounded-2xl border border-line bg-card p-5">
-            <p className="eyebrow text-teal">Heading home</p>
-            <p className="mt-2 text-sm">
-              Back to {returnLeg.to.label} — {formatDistance(returnLeg.distance_km)},{" "}
-              {formatDuration(returnLeg.duration_minutes)}.
-            </p>
-          </section>
-        )}
-
-        <footer className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-5 text-xs text-muted">
-          <span>
-            Composed by{" "}
-            {itinerary.composer === "llm"
-              ? `a language model${itinerary.llm_model ? ` (${itinerary.llm_model})` : ""}`
-              : "our routing engine"}
-          </span>
-          <Dot />
-          <span>schema v{itinerary.schema_version}</span>
-          <Dot />
-          <Link href="/plan" className="underline">
-            Plan another trip
-          </Link>
-        </footer>
+        ))}
       </div>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_360px]">
+        {/* --- the day itself ------------------------------------------------ */}
+        {/* min-w-0: a grid item defaults to min-width:auto, so the widest
+            unbreakable child (here a stop card's photo row) sets the column width
+            and pushes the page past the viewport on a phone. */}
+        <section className="min-w-0">{current && <DayBlock day={current} />}</section>
+
+        {/* --- rail: map, then timeline -------------------------------------- */}
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:h-fit">
+          {current && <RouteMap day={current} origin={brief.origin} />}
+          {current && <Timeline day={current} />}
+          {returnLeg && (
+            <div className="panel p-4">
+              <p className="eyebrow text-teal">Heading home</p>
+              <p className="mt-1.5 text-[13px] text-cream/90">
+                Back to {returnLeg.to.label} — {formatDistance(returnLeg.distance_km)},{" "}
+                {formatDuration(returnLeg.duration_minutes)}.
+              </p>
+              <p className="mt-1 text-[10.5px] text-muted-dim">
+                {returnLeg.source === "osrm" ? "Measured on the road network." : "Estimated."}
+              </p>
+            </div>
+          )}
+          <Provenance itinerary={itinerary} />
+        </aside>
+      </div>
+
+      <footer className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-5 text-[11.5px] text-muted-dim">
+        <span>
+          Composed by{" "}
+          {itinerary.composer === "llm"
+            ? `a language model${itinerary.llm_model ? ` (${itinerary.llm_model})` : ""}`
+            : "our routing engine"}
+        </span>
+        <Dot />
+        <span>schema v{itinerary.schema_version}</span>
+        <Dot />
+        <Link href="/plan" className="underline hover:text-gold">
+          Plan another trip
+        </Link>
+      </footer>
     </article>
   );
 }
 
 /**
- * A strip of the stops on this trip, directly under the hero.
+ * The compact hour-by-hour rail, as the reference shows it.
  *
- * Only a stop's OWN photograph is eligible here — no falling back to its
- * locality. A strip captioned with place names is read as "this is what these
- * places look like", so a stand-in image of the surrounding taluk would be a
- * quiet lie. Inside a stop card the same fallback is fine, because there the
- * caption says what it is.
+ * Deliberately a summary and not a second copy of the day: times, names and a
+ * thumbnail. Anything factual a reader might act on — cost, permit, guide — stays
+ * on the full card, so there is one place to read it and no chance of the two
+ * disagreeing.
  */
-function TripGallery({ days }: { days: ItineraryDay[] }) {
-  const seen = new Set<string>();
-  const shots: { photo: Photo; name: string }[] = [];
-  for (const day of days) {
-    for (const item of day.items) {
-      const photo = firstPhoto(item.media);
-      if (photo && !seen.has(photo.title)) {
-        seen.add(photo.title);
-        shots.push({ photo, name: item.name });
-      }
-    }
-  }
-  // Two is enough to read as a strip. A single lonely tile is not, and a
-  // single-interest trip in a quiet month legitimately produces one or none.
-  if (shots.length < 2) return null;
+function Timeline({ day }: { day: ItineraryDay }) {
+  if (day.items.length === 0 && !day.stay) return null;
 
   return (
-    <section className="border-y border-navy-line bg-navy-deep">
-      <div className="mx-auto max-w-6xl px-5 py-5 sm:px-8">
-        <p className="eyebrow text-muted-dim">On this trip</p>
-        {/* Scrolls sideways on a phone rather than wrapping into a tall block
-            that pushes the itinerary itself off the first screen. */}
-        <ul className="mt-3 flex snap-x gap-3 overflow-x-auto pb-1">
-          {shots.slice(0, 8).map(({ photo, name }) => (
-            <li key={photo.title} className="w-40 shrink-0 snap-start sm:w-48">
-              <div className="relative h-24 sm:h-28">
+    <div className="panel p-4">
+      <p className="eyebrow text-gold">Day {day.day_number} timeline</p>
+      <ol className="mt-3 space-y-3">
+        {day.items.map((item) => {
+          const photo = firstPhoto(item.media) ?? firstPhoto(item.region?.media);
+          return (
+            <li key={`${item.slot}-${item.poi_id}`} className="flex items-center gap-3">
+              <span className="w-11 shrink-0 font-mono text-[10.5px] text-muted-dim">
+                {item.start_time_estimate ?? "—"}
+              </span>
+              <span aria-hidden className="relative flex h-full items-center">
+                <span className="h-2.5 w-2.5 rounded-full bg-gold" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12.5px] font-medium">{item.name}</span>
+                <span className="block truncate text-[10.5px] text-muted-dim">
+                  {item.duration_minutes ? formatDuration(item.duration_minutes) : titleCase(item.kind)}
+                </span>
+              </span>
+              <span className="relative h-10 w-14 shrink-0 overflow-hidden rounded-lg">
                 <PhotoFrame
                   photo={photo}
-                  alt={name}
+                  alt=""
+                  tone={item.kind === "activity" ? "activity" : "place"}
                   variant="cover"
-                  rounded="rounded-lg"
-                  sizes="192px"
+                  rounded="rounded-none"
+                  sizes="56px"
                   showCredit={false}
                 />
-              </div>
-              <p className="mt-1.5 truncate text-[11.5px] text-cream/85">{name}</p>
-              <p className="truncate text-[9.5px] text-muted-dim">
-                © {photo.artist} · {photo.license}
-              </p>
+              </span>
             </li>
-          ))}
-        </ul>
-      </div>
-    </section>
+          );
+        })}
+        {day.stay && (
+          <li className="flex items-center gap-3 border-t border-line pt-3">
+            <span className="w-11 shrink-0 font-mono text-[10.5px] text-muted-dim">night</span>
+            <span aria-hidden className="flex h-full items-center">
+              <span className="h-2.5 w-2.5 rounded-full bg-teal" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12.5px] font-medium">{day.stay.name}</span>
+              <span className="block truncate text-[10.5px] text-muted-dim">
+                {titleCase(day.stay.stay_type)}
+              </span>
+            </span>
+          </li>
+        )}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * How trustworthy this particular itinerary is, in the rail.
+ *
+ * `composer` and the leg sources are already in the payload; surfacing them means
+ * a reader can tell a measured plan from an estimated one without reading the
+ * warnings, and a fallback plan cannot quietly pass for a curated one.
+ */
+function Provenance({ itinerary }: { itinerary: Itinerary }) {
+  const sources = new Set(
+    itinerary.days.flatMap((d) => [
+      d.travel?.source,
+      ...d.items.map((i) => i.leg_from_previous?.source),
+    ]),
+  );
+  const estimated = sources.has("static_haversine");
+  const measured = sources.has("osrm");
+
+  return (
+    <div className="panel p-4">
+      <p className="eyebrow text-muted-dim">How this was built</p>
+      <ul className="mt-2 space-y-1.5 text-[11.5px] leading-snug text-muted-dim">
+        <li>
+          Stops:{" "}
+          <span className="text-cream/80">
+            chosen from our curated database, never invented
+          </span>
+        </li>
+        <li>
+          Driving:{" "}
+          <span className="text-cream/80">
+            {measured && !estimated
+              ? "measured on the real road network"
+              : measured
+                ? "measured, with some legs estimated"
+                : "estimated from straight-line distance"}
+          </span>
+        </li>
+        <li>
+          Pacing:{" "}
+          <span className="text-cream/80">
+            {itinerary.composer === "llm" ? "curated by a language model" : "greedy by proximity"}
+          </span>
+        </li>
+      </ul>
+    </div>
   );
 }
 
@@ -227,15 +290,15 @@ function DayBlock({ day }: { day: ItineraryDay }) {
   return (
     <section>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-xl font-semibold">
-          <span className="text-muted">Day {day.day_number}</span>
+        <h2 className="font-display text-[20px] font-bold">
+          <span className="text-muted-dim">Day {day.day_number}</span>
           <span aria-hidden className="mx-2 text-line">
             /
           </span>
           {stripDayPrefix(day.title, day.day_number)}
         </h2>
         {day.travel && (
-          <span className="eyebrow text-muted">
+          <span className="eyebrow text-muted-dim">
             {formatDistance(day.travel.distance_km)} ·{" "}
             {formatDuration(day.travel.duration_minutes)} driving
           </span>
@@ -243,24 +306,15 @@ function DayBlock({ day }: { day: ItineraryDay }) {
       </div>
 
       {day.narrative && (
-        <p className="mt-2 max-w-2xl text-[13.5px] leading-relaxed text-muted">
-          {day.narrative}
-        </p>
+        <p className="mt-2 max-w-2xl text-[13.5px] leading-relaxed text-muted">{day.narrative}</p>
       )}
 
       {day.items.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-line bg-card px-4 py-5 text-sm text-muted">
+        <p className="mt-4 rounded-xl border border-dashed border-line bg-ink-850 px-4 py-5 text-[13px] text-muted">
           No stops today — the day is taken up by the drive.
         </p>
       ) : (
-        // The dotted rail is the mockup's timeline. Drawn with a border on a
-        // pseudo-element via an absolutely positioned div so it stops cleanly at
-        // the last stop instead of running past it.
-        <ol className="relative mt-5 space-y-4">
-          <span
-            aria-hidden
-            className="absolute top-3 bottom-3 left-[4.55rem] hidden border-l-2 border-dotted border-terracotta/40 sm:block"
-          />
+        <ol className="mt-4 space-y-3">
           {day.items.map((item) => (
             <li key={`${item.slot}-${item.poi_id}`}>
               <Stop item={item} />
@@ -278,85 +332,74 @@ function Stop({ item }: { item: ItineraryItem }) {
   const permit = item.detail?.requires_permit === true;
   // Its own photograph if it has one, else its taluk's. Activities and stays
   // never get their own — see the fetcher's rules — so the locality stands in.
-  const photo = firstPhoto(item.media) ?? firstPhoto(item.region?.media);
+  const own = firstPhoto(item.media);
+  const photo = own ?? firstPhoto(item.region?.media);
   const extra = item.media ? Math.max(0, item.media.length - 1) : 0;
 
   return (
-    <div className="flex gap-3 sm:gap-4">
-      <span className="w-12 shrink-0 pt-4 text-right font-mono text-[11px] text-muted">
-        {item.start_time_estimate ?? "—"}
-      </span>
-      <span
-        aria-hidden
-        className="relative z-10 mt-4 hidden h-3.5 w-3.5 shrink-0 rounded-full border-[3px] border-cream bg-terracotta sm:block"
-      />
-      <div className="min-w-0 flex-1">
-        <LegLine leg={item.leg_from_previous} />
-        {/* Stacked on a phone: a 128px thumbnail beside the text left roughly
-            twenty characters per line, so the summary ran to five lines. Full
-            width above the text reads better and shows the photograph larger. */}
-        <div className="flex flex-col gap-3 rounded-xl border border-line bg-card p-3.5 sm:flex-row sm:gap-4">
-          <div className="relative shrink-0">
-            <PhotoFrame
-              photo={photo}
-              alt={item.name}
-              tone={item.kind === "activity" ? "activity" : "place"}
-              rounded="rounded-lg"
-              className="h-40 w-full sm:h-28 sm:w-40"
-              sizes="(max-width: 640px) 92vw, 160px"
-              showCredit={false}
-            />
-            {/* Most photographed places carry three images. Saying so is more
-                use than silently showing one — it tells a reader there is more
-                to look at on Commons. */}
-            {extra > 0 && (
-              <span className="absolute right-1.5 bottom-1.5 rounded-full bg-navy/80 px-1.5 py-0.5 font-mono text-[9.5px] text-cream/90">
-                +{extra}
+    <div>
+      <LegLine leg={item.leg_from_previous} />
+      <div className="panel flex flex-col gap-3 p-3.5 sm:flex-row sm:gap-4">
+        <div className="relative shrink-0">
+          <PhotoFrame
+            photo={photo}
+            alt={item.name}
+            tone={item.kind === "activity" ? "activity" : "place"}
+            rounded="rounded-lg"
+            className="h-40 w-full sm:h-28 sm:w-40"
+            sizes="(max-width: 640px) 92vw, 160px"
+            showCredit={false}
+          />
+          {extra > 0 && (
+            <span className="absolute right-1.5 bottom-1.5 rounded-full bg-ink-950/85 px-1.5 py-0.5 font-mono text-[9.5px] text-cream/90">
+              +{extra}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="font-mono text-[11px] text-gold">
+              {item.start_time_estimate ?? "—"}
+            </span>
+            <h3 className="font-display text-[15.5px] font-semibold">{item.name}</h3>
+            {item.kind === "activity" && (
+              <span className="eyebrow text-teal">activity</span>
+            )}
+          </div>
+          <p className="text-[12.5px] leading-snug text-muted">{item.summary}</p>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-dim">
+            {item.duration_minutes && <span>{formatDuration(item.duration_minutes)}</span>}
+            {item.cost && (
+              <>
+                <Dot />
+                <span>{formatMoney(item.cost)} pp</span>
+              </>
+            )}
+            {permit && (
+              <span className="rounded-full border border-rust px-2 py-0.5 font-mono text-[9.5px] tracking-wide text-rust uppercase">
+                permit required
               </span>
             )}
-          </div>
-          <div className="min-w-0 space-y-1">
-            <h3 className="font-display text-[15px] font-semibold">
-              {item.name}
-              {item.kind === "activity" && (
-                <span className="eyebrow ml-2 align-middle text-teal">activity</span>
-              )}
-            </h3>
-            <p className="text-[12.5px] leading-snug text-muted">{item.summary}</p>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted">
-              {item.duration_minutes && <span>{formatDuration(item.duration_minutes)}</span>}
-              {item.cost && (
-                <>
-                  <Dot />
-                  <span>{formatMoney(item.cost)} pp</span>
-                </>
-              )}
-              {permit && (
-                <span className="rounded-full border border-terracotta px-2 py-0.5 font-mono text-[9.5px] tracking-wide text-terracotta uppercase">
-                  permit required
-                </span>
-              )}
+          </p>
+          {item.why_chosen && (
+            <p className="border-l-2 border-gold/50 pl-2.5 text-[12.5px] text-muted italic">
+              {item.why_chosen}
             </p>
-            {item.why_chosen && (
-              <p className="border-l-2 border-marigold/50 pl-2.5 text-[12.5px] text-muted italic">
-                {item.why_chosen}
-              </p>
-            )}
-            {item.guides.length > 0 && (
-              <p className="text-[11.5px] text-teal">
-                Guide:{" "}
-                {item.guides
-                  .map((g) => `${g.name}${g.languages.length ? ` (${g.languages.join("/")})` : ""}`)
-                  .join(", ")}
-              </p>
-            )}
-            {photo && (
-              <p className="truncate text-[10px] text-muted/70">
-                Photo © {photo.artist} · {photo.license}
-                {!firstPhoto(item.media) && " · shows the surrounding area"}
-              </p>
-            )}
-          </div>
+          )}
+          {item.guides.length > 0 && (
+            <p className="text-[11.5px] text-teal">
+              Guide:{" "}
+              {item.guides
+                .map((g) => `${g.name}${g.languages.length ? ` (${g.languages.join("/")})` : ""}`)
+                .join(", ")}
+            </p>
+          )}
+          {photo && (
+            <p className="truncate text-[10px] text-muted-dim/80">
+              Photo © {photo.artist} · {photo.license}
+              {!own && " · shows the surrounding area"}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -366,20 +409,19 @@ function Stop({ item }: { item: ItineraryItem }) {
 function StayRow({ day }: { day: ItineraryDay }) {
   if (!day.stay) {
     return (
-      <p className="mt-4 rounded-xl bg-cream px-4 py-3 text-[13px] text-muted ring-1 ring-line">
+      <p className="mt-3 rounded-xl border border-line bg-ink-850 px-4 py-3 text-[12.5px] text-muted">
         No stay selected for tonight — you will need to arrange your own.
       </p>
     );
   }
+
   // A stay is a private property and never has a Commons photograph of its own,
   // so this is its locality — labelled as such, because a reader must not think
   // it is a picture of the room.
   const area = firstPhoto(day.stay.region?.media);
 
   return (
-    <div className="mt-4 flex gap-3.5 overflow-hidden rounded-xl bg-navy p-3.5">
-      {/* Shown at every width. Hiding it on a phone while still printing
-          "photo shows Kalasa" left a caption under nothing. */}
+    <div className="panel-raised mt-3 flex gap-3.5 overflow-hidden p-3.5">
       {area && (
         <div className="relative h-16 w-20 shrink-0 sm:h-20 sm:w-28">
           <PhotoFrame
@@ -394,12 +436,12 @@ function StayRow({ day }: { day: ItineraryDay }) {
         </div>
       )}
       <div className="min-w-0">
-        <p className="eyebrow text-marigold">Tonight</p>
-        <p className="mt-1 text-[13.5px] text-cream">
+        <p className="eyebrow text-gold">Tonight</p>
+        <p className="mt-1 text-[13.5px]">
           <span className="font-medium">{day.stay.name}</span>
-          <span className="text-muted-dim"> · {titleCase(day.stay.stay_type)}</span>
+          <span className="text-muted"> · {titleCase(day.stay.stay_type)}</span>
           {day.stay.per_night && (
-            <span className="text-muted-dim"> · {formatMoney(day.stay.per_night)}/night</span>
+            <span className="text-muted"> · {formatMoney(day.stay.per_night)}/night</span>
           )}
           {day.stay.meals_included && <span className="text-teal"> · meals included</span>}
         </p>
@@ -428,13 +470,13 @@ function StayRow({ day }: { day: ItineraryDay }) {
 function LegLine({ leg }: { leg: ItineraryItem["leg_from_previous"] }) {
   if (!leg) return null;
   if (leg.duration_minutes === 0 && leg.distance_km < 1) {
-    return <p className="mb-1.5 font-mono text-[10.5px] text-muted">↓ a few steps away</p>;
+    return <p className="mb-1.5 font-mono text-[10.5px] text-muted-dim">↓ a few steps away</p>;
   }
   const parts = [formatDistance(leg.distance_km), formatDuration(leg.duration_minutes)].filter(
     Boolean,
   );
   return (
-    <p className="mb-1.5 font-mono text-[10.5px] text-muted">
+    <p className="mb-1.5 font-mono text-[10.5px] text-muted-dim">
       ↓ {parts.join(" · ")}
       {leg.source === "static_haversine" && " · estimated"}
     </p>
@@ -444,18 +486,18 @@ function LegLine({ leg }: { leg: ItineraryItem["leg_from_previous"] }) {
 /**
  * Warnings sit above the days, not below them.
  *
- * In this phase the data is hand-compiled and the travel times are estimates, so
- * an itinerary that is stretching or unverified has to say so where the reader
- * will actually see it — before they start reading the plan, not after.
+ * The data is hand-compiled and some of it is unverified, so an itinerary that is
+ * stretching or unconfirmed has to say so where the reader will actually see it —
+ * before they start reading the plan, not after.
  */
 function Warnings({ warnings }: { warnings: ItineraryWarning[] }) {
   return (
-    <section className="rounded-2xl border border-terracotta/25 bg-terracotta-soft p-5">
-      <p className="eyebrow text-terracotta">Before you go</p>
-      <ul className="mt-3 space-y-2 text-[13px] text-ink/80">
+    <section className="mt-4 rounded-2xl border border-rust/35 bg-rust-soft p-5">
+      <p className="eyebrow text-rust">Before you go</p>
+      <ul className="mt-2.5 grid gap-2 text-[12.5px] text-cream/85 sm:grid-cols-2">
         {warnings.map((warning, index) => (
           <li key={`${warning.code}-${index}`} className="flex gap-2">
-            <span aria-hidden className="text-terracotta">
+            <span aria-hidden className="text-rust">
               •
             </span>
             <span>
@@ -487,8 +529,8 @@ function Tab({
       aria-pressed={on}
       className={`rounded-full px-4 py-1.5 font-mono text-[12px] transition ${
         on
-          ? "border border-navy bg-navy text-cream"
-          : "border border-line bg-card text-muted hover:border-navy/40"
+          ? "bg-gold text-ink-950"
+          : "border border-line bg-ink-850 text-muted hover:border-gold/50"
       }`}
     >
       {children}
@@ -498,9 +540,9 @@ function Tab({
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl bg-navy-mid/80 px-3.5 py-3 ring-1 ring-navy-line">
+    <div className="rounded-xl border border-line bg-ink-850/80 px-3.5 py-2.5">
       <dt className="eyebrow text-muted-dim">{label}</dt>
-      <dd className="mt-1 font-display text-lg text-cream">{value}</dd>
+      <dd className="mt-0.5 font-display text-[17px] font-semibold">{value}</dd>
       {hint && <dd className="text-[10px] text-muted-dim">{hint}</dd>}
     </div>
   );

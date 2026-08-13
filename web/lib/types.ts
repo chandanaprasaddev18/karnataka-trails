@@ -15,7 +15,7 @@ export const SUPPORTED_SCHEMA_VERSION = 1;
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 export type PoiKind = "place" | "stay" | "activity";
 export type ComposerName = "llm" | "deterministic";
-export type TravelSource = "static_haversine" | "maps_api";
+export type TravelSource = "static_haversine" | "osrm" | "maps_api";
 
 /**
  * An attributable photograph from Wikimedia Commons.
@@ -115,6 +115,13 @@ export interface ItineraryDay {
   travel: TravelLeg | null;
   stay: StayCard | null;
   items: ItineraryItem[];
+  /**
+   * The driven shape of the day as [lat, lon] pairs, from the routing provider.
+   * Empty when it could not be fetched — the map is then not drawn at all, rather
+   * than drawn as straight lines between stops, which in the Ghats would depict a
+   * road that does not exist.
+   */
+  route: [number, number][];
 }
 
 /** Codes the UI styles differently. Kept in sync with WarningCode in models.py. */
@@ -146,7 +153,9 @@ export interface Itinerary {
   llm_model: string | null;
   candidate_set_hash: string | null;
   brief: {
-    mode: string;
+    mode: PlanMode;
+    anchor: { kind: "poi" | "region"; slug: string; label: string; point: GeoPoint } | null;
+    radius_km: number | null;
     interests: { slug: string; label: string }[];
     days: number;
     party_size: number;
@@ -181,11 +190,18 @@ export interface Itinerary {
  */
 export interface Infeasible {
   message: string;
-  reason: "out_of_season" | "budget_too_low" | "nothing_tagged" | "no_data";
+  reason:
+    | "out_of_season"
+    | "budget_too_low"
+    | "nothing_tagged"
+    | "nothing_in_radius"
+    | "no_data";
   asked_month: number;
   suggested_months: number[];
   suggested_interests: { slug: string; label: string }[];
   min_budget_band: number | null;
+  /** Location mode: a wider radius that would find something. */
+  suggested_radius_km: number | null;
 }
 
 /** A district card on the home page. */
@@ -197,7 +213,24 @@ export interface District {
   top_interests: string[];
   /** One photo per place in the district, for the home mosaic. */
   gallery: Photo[];
+  /** Months (1-12) in which this district has anything open. */
+  open_months: number[];
 }
+
+/** A place or locality a location-mode trip can be planned around. */
+export interface Anchor {
+  kind: "poi" | "region";
+  slug: string;
+  label: string;
+  sublabel: string;
+  lat: number;
+  lon: number;
+  /** Published places and activities within 60 km — shown so nobody picks an
+      anchor with nothing around it. */
+  nearby: number;
+}
+
+export type PlanMode = "interest" | "location" | "district";
 
 export interface Interest {
   slug: string;

@@ -33,7 +33,7 @@ from tripplan.domain.models import (
     TravelLeg,
     TripBrief,
 )
-from tripplan.domain.taxonomy import TravelSource
+from tripplan.domain.taxonomy import TRAVEL_SOURCE_PREFERENCE, TravelSource
 from tripplan.observability.logging import get_logger
 from tripplan.routing.base import RoutingProvider, haversine_km
 from tripplan.store import travel as travel_store
@@ -148,6 +148,11 @@ def route(
         day_km = 0.0
         day_minutes = 0
         routed_items: list[RoutedItem] = []
+        # Every leg counted in this day's total, including the approach drive and
+        # the run to that night's bed. A day with no stops still has legs, and
+        # judging its provenance from the items alone reported a measured 3-hour
+        # approach as an estimate.
+        day_sources: set[TravelSource] = set()
 
         for candidate in ordered:
             leg = resolver.between(
@@ -165,6 +170,7 @@ def route(
             )
             day_km += leg.distance_km
             day_minutes += leg.duration_minutes
+            day_sources.add(leg.source)
             cursor_point = candidate.point
             cursor_poi = candidate.poi_id
             last_candidate = candidate
@@ -177,6 +183,7 @@ def route(
             )
             day_km += to_stay.distance_km
             day_minutes += to_stay.duration_minutes
+            day_sources.add(to_stay.source)
             cursor_point = stay.point
             cursor_poi = stay.poi_id
             last_candidate = stay
@@ -191,7 +198,7 @@ def route(
                 travel=TravelLeg(
                     distance_km=round(day_km, 2),
                     duration_minutes=day_minutes,
-                    source=_source_of(routed_items),
+                    source=_weakest(day_sources),
                 ),
             )
         )
@@ -221,17 +228,27 @@ def route(
     )
 
 
-def _source_of(items: list[RoutedItem]) -> TravelSource:
-    """The weakest source used in the day, so a mixed day is not oversold.
+def _weakest(sources: set[TravelSource]) -> TravelSource:
+    """The least trustworthy source in the set, or the placeholder if empty.
 
-    During the Phase 3 rollout a day may combine a real ETA with an estimate. A
-    day is only as trustworthy as its least trustworthy leg, so report that one
-    rather than the best one.
+    A day may mix a measured leg with an estimated one, and it is only as good as
+    its worst leg — so report that one rather than the best.
+
+    Derived from TRAVEL_SOURCE_PREFERENCE rather than hardcoded. The previous
+    version returned the literal "maps_api" for anything non-static, which meant
+    an OSRM-measured day was labelled as coming from a commercial maps API we do
+    not use. Provenance that names the wrong provider is worse than none.
     """
-    sources = {i.leg_from_previous.source for i in items if i.leg_from_previous}
-    if "static_haversine" in sources or not sources:
+    if not sources:
         return "static_haversine"
-    return "maps_api"
+    return max(sources, key=lambda s: _rank(s))
+
+
+def _rank(source: TravelSource) -> int:
+    try:
+        return TRAVEL_SOURCE_PREFERENCE.index(source)
+    except ValueError:  # unknown source; treat as worst
+        return len(TRAVEL_SOURCE_PREFERENCE)
 
 
 async def load_cached_legs(

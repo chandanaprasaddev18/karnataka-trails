@@ -118,6 +118,10 @@ class DistrictOut(BaseModel):
     top_interests: list[str] = Field(default_factory=list)
     # Photographs of places inside the district, for the home page mosaic.
     gallery: list[dict[str, Any]] = Field(default_factory=list)
+    # Months in which this district has anything open, 1-12. The card shows these
+    # instead of a star rating: it is a fact we hold, and it is the single most
+    # useful thing to know before planning here — the monsoon closes most of it.
+    open_months: list[int] = Field(default_factory=list)
 
 
 class HealthOut(BaseModel):

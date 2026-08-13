@@ -159,18 +159,32 @@ came back empty:
 
 ## Design language
 
-Follows `trip-planner-web-mockups.html`: deep navy paired with cream, Fraunces
-for display, IBM Plex Mono for eyebrows, passport-stamp interest cards, a dotted
-timeline.
+Dark navy ground with a single gold accent, following the Wanderly reference the
+owner supplied (`~/Downloads/ChatGPT Image Aug 13, 2026, 01_52_18 PM.png`): a left
+nav rail listing the whole product, panels lifted out of a near-black ground with
+hairline borders, and a right rail on the itinerary holding the route map and the
+day's timeline.
 
-Where it deliberately diverges: the mockup uses four accents (orange, pink, teal,
-yellow). With real photographs on the page every card already carries its own
-colour, so four competing accents made the layout noisy and — the thing that
-actually mattered — stopped the warning states reading as warnings. An itinerary
-here routinely carries five or six advisories and those must be the loudest
-element. Cut to three, each with one job: **marigold** for primary action and
-selection, **terracotta** for the timeline and anything cautionary, **teal** for
-quiet affirmative detail. Nothing else gets a colour.
+Tokens live in `web/app/globals.css`: `ink-950..ink-700` for ground and panels,
+`gold` for the accent, `rust` for caution, `teal` for quiet affirmatives. Use the
+`.panel` class rather than re-declaring background + border + radius per card.
+
+Two rules that override the reference, both about honesty:
+
+1. **No invented data in the chrome.** The reference puts a star rating
+   ("4.8 (1.2K)") and a price ("From ₹4,999") on every card, and a "Confirmed"
+   booking chip on the trip. We have no reviews, no inventory and no bookings, so
+   those slots carry facts we do hold: published place count, which months are
+   open, whether a permit is needed, whether the driving was measured. A
+   fabricated 4.8 would be the most damaging thing on the page.
+2. **Gold means action or selection, nothing else.** An itinerary routinely
+   carries five or six advisories and those must be the loudest thing on screen,
+   so caution keeps its own rust. Decorative gold would flatten that hierarchy.
+
+Sidebar items for unbuilt features (My trips, Saved, Bookings, Guides,
+Marketplace, Experiences, Hidden gems) render as text with a "soon" marker and the
+reason in the title attribute. A visible roadmap beats a link that 404s or, worse,
+one that silently does nothing.
 
 ## Frontend notes
 
@@ -192,6 +206,10 @@ quiet affirmative detail. Nothing else gets a colour.
   `absolute inset-0` silently loses to the component's `relative`, the wrapper
   collapses to zero height, and the image renders nothing. Use
   `variant="cover"` for a background and `variant="sized"` for a thumbnail.
+- **A grid child needs `min-w-0`.** Grid items default to `min-width: auto`, so
+  the widest unbreakable descendant sets the column width and pushes the page
+  past the viewport. This produced a 9px horizontal overflow on the itinerary at
+  390px that no amount of `max-w` on the children could fix.
 - **Testing a mobile layout needs CDP device emulation.** Headless Chrome's
   `--window-size` does not set the layout viewport, so a narrow screenshot just
   crops a desktop-width render and looks like an overflow bug that is not there.
@@ -214,8 +232,11 @@ quiet affirmative detail. Nothing else gets a colour.
 - **Re-seeding preserves `status`.** Editing a fact on an already-published row
   does not force re-verification. A `seed_hash` column plus a demote-on-change
   rule would fix it; deliberately deferred.
-- **Static travel estimates are optimistic** on ghat roads. Days over the travel
-  budget are flagged rather than fudged; Phase 3 replaces the provider.
+- **Distances are real; the static estimator remains as a fallback.** Any pair
+  OSRM cannot answer falls back and is labelled `static_haversine`, so a partly
+  degraded plan says which legs were guessed. The public OSRM demo has no
+  availability guarantee — point `TRIPPLAN_ROUTING__OSRM_BASE_URL` at your own
+  instance for anything real.
 - **Scheduling ignores opening hours.** `place_details.opening_hours` is stored
   but unused; the engine only warns via `late_finish`.
 - **All seeded guides are synthetic placeholders**, so the guide path is only
@@ -230,8 +251,8 @@ quiet affirmative detail. Nothing else gets a colour.
 
 | Phase | Status |
 |---|---|
-| 1 — Plan by Interest, Chikkamagaluru, cards | in progress |
-| 2 — Plan by Location / District | designed for; reuse `store/pois.py` |
-| 3 — Real maps routing + map view | designed for; `RoutingProvider` + `travel_estimates.source` |
+| 1 — Plan by Interest, Chikkamagaluru, cards | **built** |
+| 2 — Plan by Location / District | **built** — `_scope_for` in `store/pois.py` |
+| 3 — Real maps routing + map view | **built** — OSRM provider + SVG route map. No basemap. |
 | 4 — Stay and guide booking | designed for; tables sit beside `guides` |
 | 5 — Marketplace | designed for; reuses `interest_tags` + `region_id` |

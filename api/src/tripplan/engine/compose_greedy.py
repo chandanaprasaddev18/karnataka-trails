@@ -141,9 +141,19 @@ def compose(
 
         # Reserve the approach drive out of the day's budget. On day 1 that is
         # the run from the origin; later days start from the previous cluster.
+        #
+        # Measured between REAL PLACES, not between cluster centroids. A centroid
+        # is the average of several points and therefore somewhere no road goes: a
+        # routing provider has no measurement for it and has to fall back to a
+        # straight-line estimate. That is how a day whose legs measured 3h15m came
+        # to describe itself as a "9h 52m" drive in its own narrative — the same
+        # provider, asked about a place that does not exist, gave a very different
+        # answer. Asking about the stop the traveller will actually drive to keeps
+        # the prose and the routing stage in agreement.
+        previous = ordered[(day_number - 2) % len(ordered)]
         approach = estimate(
-            origin_point if day_number == 1 else ordered[(day_number - 2) % len(ordered)].centroid,
-            cluster.centroid,
+            origin_point if day_number == 1 else _anchor_point(previous),
+            _anchor_point(cluster),
         )
         budget = max(0, day_activity_minutes - approach)
 
@@ -219,6 +229,15 @@ def compose(
         ),
         days=days,
     )
+
+
+def _anchor_point(cluster: _Cluster) -> GeoPoint:
+    """A real place standing in for the cluster: the member nearest its centroid.
+
+    Used wherever a distance must be *measured* rather than merely compared, so
+    the number comes from a coordinate the routing provider actually knows.
+    """
+    return min(cluster.items, key=lambda c: haversine_km(cluster.centroid, c.point)).point
 
 
 def _hhmm(minutes: int) -> str:

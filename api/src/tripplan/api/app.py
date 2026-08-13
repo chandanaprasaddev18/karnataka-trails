@@ -284,6 +284,25 @@ async def list_districts(conn: Conn) -> list[DistrictOut]:
             row["slug"],
         )
 
+        # Which months this district can actually be planned in. A POI with no
+        # best_months is open year round, so its presence makes every month viable
+        # — hence the OR, rather than counting months per row.
+        month_rows = await conn.fetch(
+            """
+            SELECT m FROM generate_series(1, 12) AS m
+            WHERE EXISTS (
+                SELECT 1 FROM pois p
+                JOIN regions r ON r.id = p.region_id
+                WHERE p.status = 'published'
+                  AND p.kind IN ('place', 'activity')
+                  AND r.path LIKE (SELECT path FROM regions WHERE slug = $1) || '%'
+                  AND (p.best_months IS NULL OR m = ANY(p.best_months))
+            )
+            ORDER BY m
+            """,
+            row["slug"],
+        )
+
         out.append(
             DistrictOut(
                 slug=str(row["slug"]),
@@ -296,6 +315,7 @@ async def list_districts(conn: Conn) -> list[DistrictOut]:
                     for g in gallery_rows
                     if g["photo"]
                 ],
+                open_months=[int(m["m"]) for m in month_rows],
             )
         )
     return out

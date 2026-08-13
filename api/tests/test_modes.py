@@ -16,6 +16,7 @@ comment.
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -281,3 +282,65 @@ async def test_district_mode_out_of_season_still_suggests_months(
         assert verdict.suggested_months or verdict.reason == "budget_too_low", (
             f"{verdict.reason} left the user with no alternative to try"
         )
+
+
+# ---------------------------------------------------------------------------
+# provenance must name the right measurer
+# ---------------------------------------------------------------------------
+
+
+def test_a_day_reports_its_weakest_leg_and_names_the_real_source() -> None:
+    """A mixed day is only as good as its worst leg, and the label must be true.
+
+    The old implementation returned the literal "maps_api" for anything that was
+    not the static placeholder, so an OSRM-measured day claimed to come from a
+    commercial maps API we do not use. Provenance that names the wrong provider is
+    worse than no provenance at all.
+    """
+    from tripplan.engine.routing import _weakest
+
+    assert _weakest({"osrm"}) == "osrm"
+    assert _weakest({"osrm", "static_haversine"}) == "static_haversine"
+    assert _weakest({"maps_api", "osrm"}) == "osrm"
+    # An empty day has measured nothing, so it must not claim to have measured.
+    assert _weakest(set()) == "static_haversine"
+
+
+def test_the_composer_measures_between_real_places() -> None:
+    """The approach drive must be quoted between coordinates a router knows.
+
+    A cluster centroid is the average of several points, so it sits nowhere a road
+    goes: a routing provider has no measurement for it and silently falls back to
+    a straight-line estimate. That produced a day whose legs measured 3h15m while
+    its own narrative called it a 9h52m drive, and — worse — reserved the larger
+    number from the day's budget, leaving day 1 with no stops at all.
+    """
+    from tripplan.domain.models import Candidate, GeoPoint, RegionRef
+    from tripplan.engine.compose_greedy import _anchor_point, _Cluster
+
+    def _candidate(name: str, lat: float, lon: float) -> Candidate:
+        return Candidate(
+            ref=f"P{name}",
+            poi_id=uuid4(),
+            kind="place",
+            name=name,
+            summary="",
+            region=RegionRef(slug="r", name="R"),
+            point=GeoPoint(lat=lat, lon=lon),
+        )
+
+    cluster = _Cluster(
+        region_slug="r",
+        region_name="R",
+        items=[
+            _candidate("west", 13.0, 75.0),
+            _candidate("middle", 13.1, 75.1),
+            _candidate("east", 13.2, 75.2),
+        ],
+    )
+
+    anchor = _anchor_point(cluster)
+    assert (anchor.lat, anchor.lon) in {(13.0, 75.0), (13.1, 75.1), (13.2, 75.2)}, (
+        "the anchor must be one of the cluster's real places, not their average"
+    )
+    assert (anchor.lat, anchor.lon) == (13.1, 75.1), "expected the member nearest the centroid"

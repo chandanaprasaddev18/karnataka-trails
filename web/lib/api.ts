@@ -1,4 +1,12 @@
-import type { District, Infeasible, Interest, PlanAccepted, PlanStatus } from "./types";
+import type {
+  Anchor,
+  District,
+  Infeasible,
+  Interest,
+  PlanAccepted,
+  PlanMode,
+  PlanStatus,
+} from "./types";
 
 /**
  * API client.
@@ -77,12 +85,32 @@ export async function fetchDistricts(): Promise<District[]> {
 }
 
 export interface PlanInput {
+  mode: PlanMode;
   interests: string[];
   days: number;
   party_size: number;
   budget_band: number;
   origin: string;
   travel_month: number | null;
+  /** Location mode: the slug of an anchor from `fetchAnchors`. */
+  anchor?: string | null;
+  radius_km?: number | null;
+}
+
+/**
+ * Anchors matching a typed fragment, for location mode.
+ *
+ * Searched on the server rather than filtered in the browser: `nearby` is a
+ * per-row radius count only the database can do cheaply, and the list becomes
+ * every published POI in Karnataka as more districts are seeded.
+ */
+export async function fetchAnchors(query: string): Promise<Anchor[]> {
+  const response = await fetch(
+    `${BASE}/api/anchors?q=${encodeURIComponent(query)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) throw new ApiError(await parseError(response), response.status);
+  return response.json();
 }
 
 export async function createPlan(input: PlanInput): Promise<PlanAccepted> {

@@ -1,62 +1,57 @@
 @import "tailwindcss";
 
 /*
- * PALETTE
+ * PALETTE — dark navy with a single gold accent.
  *
- * The mockup pairs deep navy with cream and then reaches for four accents —
- * orange, pink, teal and yellow. Four is too many once real photographs are on
- * the page: every card already carries its own colour, so competing accents make
- * the layout noisy and, more practically, make the warning states stop reading as
- * warnings. An itinerary here routinely carries five or six advisories, and those
- * have to be the loudest thing on the screen.
+ * Follows the Wanderly reference: a near-black navy ground, panels lifted one or
+ * two steps out of it, hairline borders instead of shadows, and gold as the only
+ * decorative colour. Photographs sit forward on a dark ground without any of the
+ * scrim gymnastics the cream layout needed.
  *
- * So: the navy/cream base is kept — it makes photographs sit forward — and the
- * accents are cut to three with distinct jobs.
+ * Two things the reference does that this app must not, and the palette is built
+ * around them:
  *
- *   marigold    primary action, selected state. Temple marigolds and the
- *               turmeric-and-coffee warmth of this district.
- *   terracotta  the timeline, and anything cautionary. Laterite soil.
- *   teal        quiet affirmative detail — verified, included, available.
- *               Western Ghats water.
- *
- * The navy is a five-step ramp rather than three, because the redesign layers
- * navy on navy (stat tiles on a photo hero, stay bars inside cream cards) and
- * three steps forced either invisible or heavy-handed separation. Both neutrals
- * are warm — the navy carries a little red, the cream a little yellow — so
- * photographs of laterite soil and coffee estates sit inside the palette instead
- * of fighting it.
+ * 1. It shows star ratings and "From ₹4,999" on every card. We hold neither, so
+ *    those slots carry facts we do have — how many places are published, which
+ *    months are open, whether a permit is needed. No colour is spent on them.
+ * 2. It uses gold for decoration everywhere. Here gold means ACTION or SELECTION
+ *    and nothing else, because an itinerary routinely carries five or six
+ *    advisories and those must be the loudest thing on screen. Caution keeps its
+ *    own rust, which reads clearly against navy without competing with gold.
  */
 @theme {
-  /* base — warm navy ramp */
-  --color-navy: #111c33;
-  --color-navy-deep: #0c1526;
-  --color-navy-mid: #1a2745;
-  --color-navy-soft: #253356;
-  --color-navy-line: #2f4067;
-  --color-cream: #fcf8f1;
-  --color-cream-dim: #f4ede1;
-  --color-card: #ffffff;
-  --color-ink: #14203b;
-  --color-muted: #6b7490;
-  --color-muted-dim: #98a2c0;
-  --color-line: #e9e2d6;
+  /* ground and panels — five steps, dark to light */
+  --color-ink-950: #070c15;
+  --color-ink-900: #0a1018;
+  --color-ink-850: #0e1522;
+  --color-ink-800: #121b2b;
+  --color-ink-700: #18233a;
+  --color-line: #1f2c45;
+  --color-line-soft: #172236;
 
-  /* accents — three, each with one job */
-  --color-marigold: #eb9a2c;
-  --color-marigold-soft: #fdf1dc;
-  --color-terracotta: #bf5230;
-  --color-terracotta-soft: #fbeee8;
-  --color-teal: #14757c;
-  --color-teal-soft: #e5f0f0;
+  /* type */
+  --color-cream: #eef2fa;
+  --color-muted: #94a3bf;
+  --color-muted-dim: #64748f;
 
-  --font-display: var(--font-fraunces);
+  /* the accent, and the semantic pair */
+  --color-gold: #f0b429;
+  --color-gold-dim: #b98317;
+  --color-gold-soft: #2a2210;
+  --color-rust: #e2683c;
+  --color-rust-soft: #2b1710;
+  --color-teal: #2bb3a3;
+  --color-teal-soft: #0e2a29;
+
+  --font-display: var(--font-display-sans);
   --font-sans: var(--font-body);
   --font-mono: var(--font-plex-mono);
 }
 
 html {
-  background: var(--color-cream);
-  color: var(--color-ink);
+  background: var(--color-ink-950);
+  color: var(--color-cream);
+  color-scheme: dark;
 }
 
 body {
@@ -65,12 +60,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Display type wants tighter tracking than its default at large sizes. */
+/* Display type is set tight and heavy in this theme; the default tracking at
+   large sizes is too loose for it to read as a single object. */
 .font-display {
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
 }
 
-/* An eyebrow: small, spaced, monospaced. Used above headings throughout. */
+/* An eyebrow: small, spaced, monospaced. Used above headings and on data. */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -78,21 +74,36 @@ body {
   text-transform: uppercase;
 }
 
+/* A panel. Every card in this theme is the same object: lifted ground, hairline
+   border, generous radius. Defined once so they cannot drift apart. */
+.panel {
+  background: var(--color-ink-850);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+}
+
+.panel-raised {
+  background: var(--color-ink-800);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+}
+
 /*
  * PHOTO GRADE
  *
- * The photographs come from dozens of different photographers across twenty
- * years — phone snaps next to DSLR landscapes, some flat and grey, some
- * oversaturated. Dropped in raw they read as a scrapbook rather than one product.
+ * The photographs come from dozens of photographers across twenty years — phone
+ * snaps beside DSLR landscapes, some flat, some oversaturated. Dropped in raw on
+ * a dark ground the bright ones glare.
  *
- * This is a deliberately light grade: lift contrast slightly, pull saturation
- * back a touch so nothing screams, and warm the whole set with a low-opacity
- * marigold wash over a navy floor. Enough to make mixed sources feel related,
- * not enough to misrepresent what a place looks like — which rules out anything
- * heavier like a true duotone.
+ * A light grade: pull saturation back slightly, lift contrast, and lay a cool
+ * navy wash under a warm top so mixed sources feel related. Enough to unify, not
+ * enough to misrepresent what a place looks like — which rules out a duotone.
  */
 .photo-grade img {
-  filter: saturate(0.92) contrast(1.06) brightness(0.98);
+  /* Brighter than the cream layout's grade, not darker. On a near-black ground a
+     photograph competes with nothing, so pulling it down (as the light theme had
+     to, to keep text legible) just made every image look like dusk. */
+  filter: saturate(1.04) contrast(1.06) brightness(1.04);
 }
 
 .photo-grade::after {
@@ -100,14 +111,32 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(235, 154, 44, 0.07), rgba(17, 28, 51, 0.16));
-  mix-blend-mode: multiply;
+  /* A warm top and a cool floor, both faint: enough to relate twenty different
+     photographers' work, not enough to darken it. Text legibility is handled by
+     per-component scrims, which know where their text actually sits. */
+  background: linear-gradient(180deg, rgba(240, 180, 41, 0.05), rgba(7, 12, 21, 0.18));
 }
 
-/* Focus ring that survives on both the navy and cream halves of the app. */
+/* Scrollbars, on the panels that scroll. The default light track punches a hole
+   in a dark layout. */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+.thin-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+}
+
+/* Focus ring that survives on every surface in the app. */
 :focus-visible {
-  outline: 2px solid var(--color-marigold);
+  outline: 2px solid var(--color-gold);
   outline-offset: 2px;
   border-radius: 4px;
 }

@@ -18,11 +18,25 @@ from tripplan.domain.taxonomy import TRAVEL_SOURCE_PREFERENCE, TravelSource
 PoiPair = tuple[UUID, UUID]
 
 
-async def load_legs(conn: DbConn, poi_ids: list[UUID]) -> dict[PoiPair, TravelLeg]:
+async def load_legs(
+    conn: DbConn,
+    poi_ids: list[UUID],
+    *,
+    no_worse_than: TravelSource | None = None,
+) -> dict[PoiPair, TravelLeg]:
     """Best cached leg for every pair among `poi_ids`, honouring the source preference.
 
     Fetches by endpoint membership rather than by explicit pair list: a candidate
     set is a few dozen POIs, so one small query beats composite-array binding.
+
+    `no_worse_than` exists because a cache is only a shortcut while it holds
+    something at least as good as what you would otherwise compute. Switching the
+    provider to OSRM left every POI-to-POI leg answered from a `static_haversine`
+    row written months earlier: the resolver checks the cache first, so the better
+    provider was never asked and the itinerary silently kept its placeholder
+    numbers. Passing the provider's own source here retires those rows from use —
+    without deleting them, since `source` is in the primary key so the two stay
+    comparable.
     """
     if not poi_ids:
         return {}
@@ -36,6 +50,12 @@ async def load_legs(conn: DbConn, poi_ids: list[UUID]) -> dict[PoiPair, TravelLe
         poi_ids,
     )
 
+    floor = (
+        TRAVEL_SOURCE_PREFERENCE.index(no_worse_than)
+        if no_worse_than in TRAVEL_SOURCE_PREFERENCE
+        else len(TRAVEL_SOURCE_PREFERENCE)
+    )
+
     ranked: dict[PoiPair, tuple[int, TravelLeg]] = {}
     for row in rows:
         source: TravelSource = row["source"]
@@ -43,6 +63,8 @@ async def load_legs(conn: DbConn, poi_ids: list[UUID]) -> dict[PoiPair, TravelLe
             rank = TRAVEL_SOURCE_PREFERENCE.index(source)
         except ValueError:  # unknown source; treat as worst
             rank = len(TRAVEL_SOURCE_PREFERENCE)
+        if rank > floor:
+            continue  # a weaker measurement than the provider can make right now
         key = (UUID(str(row["from_poi_id"])), UUID(str(row["to_poi_id"])))
         leg = TravelLeg(
             distance_km=float(row["distance_km"]),

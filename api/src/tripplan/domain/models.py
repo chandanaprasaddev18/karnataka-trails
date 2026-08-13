@@ -334,6 +334,11 @@ class ItineraryDay(BaseModel):
     travel: TravelLeg | None = None
     stay: StayCard | None = None
     items: list[ItineraryItem] = Field(default_factory=list)
+    # The driven shape of the day as [[lat, lon], ...], from the routing provider.
+    # Empty when the provider cannot supply one — the map is then not drawn, rather
+    # than drawn as straight lines between stops, which in the Ghats would be a
+    # picture of a road that does not exist. Additive field: no SCHEMA_VERSION bump.
+    route: list[list[float]] = Field(default_factory=list)
 
 
 class ReturnLeg(BaseModel):

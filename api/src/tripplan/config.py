@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LlmBackend = Literal["none", "hosted", "ollama", "claude"]
-RoutingProviderName = Literal["static"]
+RoutingProviderName = Literal["static", "osrm"]
 
 # Repo root, derived from this file's location: src/tripplan/config.py -> api/ -> root
 API_DIR = Path(__file__).resolve().parents[2]
@@ -56,12 +56,22 @@ class RetrievalSettings(BaseModel):
 
 
 class RoutingSettings(BaseModel):
-    """Stage 4. ``static`` is the Phase 1 placeholder; Phase 3 adds a maps provider."""
+    """Stage 4. ``static`` is the placeholder; ``osrm`` measures the real road network.
 
-    provider: RoutingProviderName = "static"
+    `road_factor` and `avg_speed_kmh` still matter under ``osrm``: they configure the
+    fallback used for any pair OSRM could not answer, so a partly-degraded plan is
+    still complete and still says which legs were guessed.
+    """
+
+    provider: RoutingProviderName = "osrm"
     road_factor: float = Field(default=1.35, gt=1.0)
     avg_speed_kmh: float = Field(default=28.0, gt=0)
     max_travel_minutes_per_day: int = Field(default=300, ge=30)
+    # The public demo server. Point this at your own OSRM if you have one — the
+    # demo asks for light use and offers no availability guarantee, which is
+    # exactly why an unreachable router degrades instead of failing.
+    osrm_base_url: str = "https://router.project-osrm.org"
+    osrm_timeout_seconds: float = Field(default=20.0, gt=0)
 
 
 class PlanningSettings(BaseModel):

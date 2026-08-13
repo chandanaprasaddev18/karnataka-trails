@@ -36,7 +36,9 @@ from tripplan.engine import compose_greedy, routing
 from tripplan.engine import validate as validate_stage
 from tripplan.llm.base import Composer
 from tripplan.observability.logging import get_logger
-from tripplan.routing.static_provider import StaticEstimateProvider
+from tripplan.routing.base import RoutingProvider
+from tripplan.routing.factory import build_provider
+from tripplan.routing.osrm import OsrmRoutingProvider
 from tripplan.store import pois as poi_store
 
 log = get_logger(__name__)
@@ -96,10 +98,16 @@ async def generate(
 
     # The provider is built before stage 2 so the composer can budget each day
     # against its approach drive.
-    provider = StaticEstimateProvider(
-        road_factor=settings.routing.road_factor,
-        avg_speed_kmh=settings.routing.avg_speed_kmh,
-    )
+    provider = build_provider(settings)
+
+    # Warm the whole distance matrix in one request before anything asks for a
+    # leg. Without this, a real routing provider would be called once per hop from
+    # inside a synchronous function — dozens of round trips per plan, and a
+    # composer that cannot see travel costs while it is still deciding.
+    if isinstance(provider, OsrmRoutingProvider):
+        points = [GeoPoint(lat=brief.origin.lat, lon=brief.origin.lon)]
+        points += [c.point for c in candidates.all()]
+        await provider.warm(points)
 
     def travel_minutes(a: GeoPoint, b: GeoPoint) -> int:
         return provider.leg(a, b).duration_minutes
@@ -115,10 +123,16 @@ async def generate(
     )
 
     # --- stage 4: route -----------------------------------------------------
-    cached = await routing.load_cached_legs(conn, candidates)
+    cached = await routing.load_cached_legs(conn, candidates, provider=provider)
     resolver = routing.LegResolver(provider, cached)
     plan = routing.route(draft, candidates, brief, resolver)
     await routing.persist_computed_legs(conn, resolver)
+
+    # The driven shape of each day, for the map. Best effort and deliberately
+    # after routing: the stop order is already decided, so this only asks "what
+    # does the road between them look like". No geometry means no map, never a
+    # straight line pretending to be a road.
+    geometry = await _day_geometry(provider, plan, brief)
 
     # --- stage 5: assemble --------------------------------------------------
     itinerary = assemble_stage.assemble(
@@ -133,6 +147,7 @@ async def generate(
         day_start_time=settings.planning.day_start_time,
         max_travel_minutes_per_day=settings.routing.max_travel_minutes_per_day,
         unmet_interests=unmet,
+        day_geometry=geometry,
         candidate_set_hash=candidates.fingerprint(),
         llm_provider=composer.name if composer and used_composer == "llm" else None,
         llm_model=composer.model if composer and used_composer == "llm" else None,
@@ -144,6 +159,34 @@ async def generate(
         composer=used_composer,
         fallback_reason=fallback_reason,
     )
+
+
+async def _day_geometry(
+    provider: RoutingProvider,
+    plan: routing.RoutedPlan,
+    brief: TripBrief,
+) -> dict[int, list[list[float]]]:
+    """Road geometry per day number, or {} when the provider cannot supply it.
+
+    Each day is one request through that day's waypoints: where the traveller
+    wakes up, every stop in visiting order, and the bed at the end.
+    """
+    if not isinstance(provider, OsrmRoutingProvider):
+        return {}
+
+    out: dict[int, list[list[float]]] = {}
+    cursor = GeoPoint(lat=brief.origin.lat, lon=brief.origin.lon)
+    for day in plan.days:
+        waypoints = [cursor]
+        waypoints += [item.candidate.point for item in day.items]
+        if day.stay is not None:
+            waypoints.append(day.stay.point)
+        if len(waypoints) >= 2:
+            line = await provider.geometry(waypoints)
+            if line:
+                out[day.day_number] = line
+        cursor = waypoints[-1]
+    return out
 
 
 async def _compose_and_validate(

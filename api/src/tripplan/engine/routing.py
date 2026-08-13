@@ -235,9 +235,21 @@ def _source_of(items: list[RoutedItem]) -> TravelSource:
 
 
 async def load_cached_legs(
-    conn: DbConn, candidates: CandidateSet
+    conn: DbConn,
+    candidates: CandidateSet,
+    *,
+    provider: RoutingProvider | None = None,
 ) -> dict[tuple[UUID, UUID], TravelLeg]:
-    return await travel_store.load_legs(conn, [c.poi_id for c in candidates.all()])
+    """Cached legs worth reusing, given who is doing the measuring now.
+
+    A cached row from a weaker source is ignored rather than reused: otherwise the
+    memo table pins an itinerary to whatever provider happened to run first.
+    """
+    return await travel_store.load_legs(
+        conn,
+        [c.poi_id for c in candidates.all()],
+        no_worse_than=provider.source if provider is not None else None,
+    )
 
 
 async def persist_computed_legs(conn: DbConn, resolver: LegResolver) -> int:

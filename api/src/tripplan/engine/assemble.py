@@ -113,6 +113,7 @@ def assemble(
     day_start_time: str,
     max_travel_minutes_per_day: int,
     unmet_interests: list[str] | None = None,
+    day_geometry: dict[int, list[list[float]]] | None = None,
     candidate_set_hash: str | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
@@ -188,6 +189,7 @@ def assemble(
                 travel=day.travel,
                 stay=_stay_card(day.stay) if day.stay is not None else None,
                 items=items,
+                route=(day_geometry or {}).get(day.day_number, []),
             )
         )
 

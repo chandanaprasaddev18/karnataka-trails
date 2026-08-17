@@ -64,15 +64,38 @@ async def init_connection(conn: asyncpg.Connection) -> None:
     )
 
 
+def _statement_cache_size(dsn: str) -> int:
+    """0 when talking to a transaction-mode pooler, asyncpg's default otherwise.
+
+    asyncpg prepares statements and caches them per connection. A transaction-mode
+    pooler (Neon's `-pooler` endpoint, Supabase's port 6543, PgBouncer generally)
+    hands the same server connection to different clients between transactions, so
+    the cached plan is not there next time and you get:
+
+        prepared statement "__asyncpg_stmt_1__" does not exist
+
+    intermittently, under load, after everything looked fine in testing. Disabling
+    the cache is the documented fix and costs a re-plan per query — irrelevant next
+    to the network hop to a hosted database.
+
+    Detected from the DSN rather than configured, because the failure is obscure and
+    nobody deploying for the first time will know to set a flag for it.
+    """
+    pooled = "-pooler" in dsn or ":6543" in dsn or "pgbouncer=true" in dsn
+    return 0 if pooled else 100
+
+
 @asynccontextmanager
 async def pool(settings: Settings | None = None) -> AsyncIterator[asyncpg.Pool]:
     """Open an asyncpg pool for the duration of the context."""
     cfg = settings or get_settings()
+    dsn = cfg.db.dsn()
     created = await asyncpg.create_pool(
-        dsn=cfg.db.dsn(),
+        dsn=dsn,
         min_size=cfg.db.min_pool_size,
         max_size=cfg.db.max_pool_size,
         init=init_connection,
+        statement_cache_size=_statement_cache_size(dsn),
     )
     if created is None:  # pragma: no cover — asyncpg only returns None on bad args
         raise RuntimeError("failed to create connection pool")
@@ -86,7 +109,8 @@ async def pool(settings: Settings | None = None) -> AsyncIterator[asyncpg.Pool]:
 async def connect(settings: Settings | None = None) -> AsyncIterator[asyncpg.Connection]:
     """Open a single connection — for CLI commands that don't need a pool."""
     cfg = settings or get_settings()
-    conn = await asyncpg.connect(dsn=cfg.db.dsn())
+    dsn = cfg.db.dsn()
+    conn = await asyncpg.connect(dsn=dsn, statement_cache_size=_statement_cache_size(dsn))
     await init_connection(conn)
     try:
         yield conn

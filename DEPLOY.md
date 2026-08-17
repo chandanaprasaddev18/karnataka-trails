@@ -35,8 +35,17 @@ State these to anyone you share the link with, because they are visible:
 
 1. https://neon.tech → sign in with GitHub → **New project**, region closest to your
    testers (`ap-southeast-1` for India).
-2. Copy the **pooled** connection string. It looks like
-   `postgresql://user:pass@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`.
+2. Copy the **direct** connection string — the one WITHOUT `-pooler` in the host:
+   `postgresql://user:pass@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`
+
+   Why not the pooled one: asyncpg prepares and caches statements per connection,
+   and a transaction-mode pooler hands the same server connection to different
+   clients between transactions, so you get intermittent
+   `prepared statement "__asyncpg_stmt_1__" does not exist` under load after
+   everything looked fine in testing. The app detects a pooler URL and disables the
+   statement cache anyway (`db.py::_statement_cache_size`), so the pooled string
+   will work — the direct one is simply faster, and one instance with a 10-connection
+   pool has no need for external pooling.
 3. Load the schema and data from your machine — the seed files live here, not on the
    server, and publishing should be a deliberate act rather than something a web
    process does on boot:

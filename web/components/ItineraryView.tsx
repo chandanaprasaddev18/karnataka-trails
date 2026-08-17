@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PhotoFrame, firstPhoto } from "@/components/PhotoFrame";
+import { BookingRequest } from "@/components/BookingRequest";
 import { RouteMap } from "@/components/RouteMap";
+import { TakeHome } from "@/components/TakeHome";
 import { formatDistance, formatDuration, formatMoney, titleCase } from "@/lib/format";
 import type {
   Itinerary,
@@ -27,7 +29,14 @@ import type {
  *
  * A client component only because of the day tabs; everything else is static.
  */
-export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
+export function ItineraryView({
+  itinerary,
+  itineraryId,
+}: {
+  itinerary: Itinerary;
+  /** From the API response; falls back to the payload's own id. */
+  itineraryId?: string | null;
+}) {
   const { summary, brief, days, return_leg: returnLeg } = itinerary;
   const [activeDay, setActiveDay] = useState<number>(days[0]?.day_number ?? 1);
   const current = days.find((d) => d.day_number === activeDay) ?? days[0];
@@ -134,7 +143,15 @@ export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
         {/* min-w-0: a grid item defaults to min-width:auto, so the widest
             unbreakable child (here a stop card's photo row) sets the column width
             and pushes the page past the viewport on a phone. */}
-        <section className="min-w-0">{current && <DayBlock day={current} />}</section>
+        <section className="min-w-0">
+          {current && (
+            <DayBlock
+              day={current}
+              partySize={brief.party_size}
+              itineraryId={itineraryId ?? null}
+            />
+          )}
+        </section>
 
         {/* --- rail: map, then timeline -------------------------------------- */}
         <aside className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:h-fit">
@@ -152,6 +169,7 @@ export function ItineraryView({ itinerary }: { itinerary: Itinerary }) {
               </p>
             </div>
           )}
+          {itineraryId && <TakeHome itineraryId={itineraryId} />}
           <Provenance itinerary={itinerary} />
         </aside>
       </div>
@@ -286,7 +304,15 @@ function Provenance({ itinerary }: { itinerary: Itinerary }) {
   );
 }
 
-function DayBlock({ day }: { day: ItineraryDay }) {
+function DayBlock({
+  day,
+  partySize,
+  itineraryId,
+}: {
+  day: ItineraryDay;
+  partySize: number;
+  itineraryId: string | null;
+}) {
   return (
     <section>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -323,7 +349,7 @@ function DayBlock({ day }: { day: ItineraryDay }) {
         </ol>
       )}
 
-      <StayRow day={day} />
+      <StayRow day={day} partySize={partySize} itineraryId={itineraryId} />
     </section>
   );
 }
@@ -406,7 +432,15 @@ function Stop({ item }: { item: ItineraryItem }) {
   );
 }
 
-function StayRow({ day }: { day: ItineraryDay }) {
+function StayRow({
+  day,
+  partySize,
+  itineraryId,
+}: {
+  day: ItineraryDay;
+  partySize: number;
+  itineraryId: string | null;
+}) {
   if (!day.stay) {
     return (
       <p className="mt-3 rounded-xl border border-line bg-ink-850 px-4 py-3 text-[12.5px] text-muted">
@@ -455,6 +489,16 @@ function StayRow({ day }: { day: ItineraryDay }) {
             Photo shows {day.stay.region?.name ?? "the area"} · © {area.artist} · {area.license}
           </p>
         )}
+        {/* Phase 4. The panel is explicit that this records intent rather than
+            booking anything — we hold no verified contact for any stay. */}
+        <BookingRequest
+          kind="stay"
+          slug={day.stay.slug}
+          name={day.stay.name}
+          partySize={partySize}
+          itineraryId={itineraryId}
+          dayNumber={day.day_number}
+        />
       </div>
     </div>
   );

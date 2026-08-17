@@ -1,0 +1,78 @@
+# What Chikkamagaluru's localities are known for producing.
+#
+# ------------------------------------------------------------------------
+# THE RULES FOR THIS FILE
+#
+# 1. A row is a checkable fact about a PLACE, not an offer. No seller, no price,
+#    no phone number — those belong to `vendors`, and we have no verified ones.
+# 2. `note` must say something specific enough to act on: what it is, when it is
+#    good, or what to look for. If the note could be written about anywhere in
+#    Karnataka, delete the row.
+# 3. `source` is where the claim comes from. `local_knowledge` means widely known
+#    and uncontroversial (this district grows coffee); anything narrower needs a
+#    real citation, and anything I could not check does not go in.
+# 4. `best_months` is the buying season where there is one — harvest or pressing.
+#    Leave it out rather than guessing; a wrong month sends someone in the
+#    monsoon for something that is not ready.
+#
+# These render on the marketplace page and as a "take home" strip on any itinerary
+# that passes through the region.
+# ------------------------------------------------------------------------
+
+- region: chikkamagaluru
+  category: coffee-beans
+  note: >-
+    The district is India's oldest coffee region — arabica was first planted on
+    Baba Budangiri. Estate shops around Chikkamagaluru town sell their own beans;
+    ask for the current crop rather than a blend.
+  best_months: [12, 1, 2, 3]
+  source: local_knowledge
+  confidence: 4
+  display_order: 10
+
+- region: chikkamagaluru
+  category: spices
+  note: >-
+    Pepper vines and areca grow on the same estates as the coffee, so the town
+    markets carry both. Pepper is picked from late in the year.
+  best_months: [12, 1, 2]
+  source: local_knowledge
+  confidence: 3
+  display_order: 20
+
+- region: mudigere
+  category: jaggery
+  note: >-
+    Cane from the lower slopes is pressed in small units around Mudigere through
+    the dry months; sold in dark unrefined blocks rather than powder.
+  best_months: [1, 2, 3]
+  source: local_knowledge
+  confidence: 3
+  display_order: 30
+
+- region: sringeri
+  category: preserves
+  note: >-
+    Households around Sringeri put up bamboo shoot, gooseberry and jackfruit
+    preparations. Sold at the shops near the temple street.
+  source: local_knowledge
+  confidence: 3
+  display_order: 40
+
+- region: kalasa
+  category: honey
+  note: >-
+    Honey from the forest edge around Kalasa and Kudremukh, both wild-harvested
+    and from box hives. Cloudy and unfiltered is the local style.
+  source: local_knowledge
+  confidence: 3
+  display_order: 50
+
+- region: koppa
+  category: handloom
+  note: >-
+    Cane and bamboo work from the malnad villages around Koppa — baskets, mats
+    and winnowing trays made for use rather than for display.
+  source: local_knowledge
+  confidence: 2
+  display_order: 60

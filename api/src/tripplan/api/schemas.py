@@ -8,6 +8,7 @@ change independently (adding a field to a response should not bump
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
@@ -129,3 +130,50 @@ class HealthOut(BaseModel):
     database: bool
     published_pois: int
     composer: str
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — booking requests
+# ---------------------------------------------------------------------------
+
+
+class BookingRequestIn(BaseModel):
+    """What the client asks for. It names a target by SLUG and nothing else.
+
+    No price, no contact, no name: those are resolved server-side from the
+    published row, so a request cannot carry a number we never published. Same
+    rule as the itinerary composer — the client may point at our data, not
+    describe it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["stay", "guide", "activity"]
+    slug: str
+    party_size: int = Field(ge=1, le=30)
+    check_in: date | None = None
+    check_out: date | None = None
+    note: str | None = Field(default=None, max_length=500)
+    itinerary_id: UUID | None = None
+    day_number: int | None = Field(default=None, ge=1, le=14)
+
+
+class BookingOut(BaseModel):
+    """A recorded request, as the client renders it."""
+
+    id: UUID
+    kind: Literal["stay", "guide", "activity"]
+    status: Literal["requested", "sent", "confirmed", "declined", "withdrawn"]
+    party_size: int
+    check_in: date | None = None
+    check_out: date | None = None
+    note: str | None = None
+    itinerary_id: UUID | None = None
+    day_number: int | None = None
+    target: dict[str, Any]
+    sent_via: str | None = None
+    created_at: str
+    # Whether we hold any channel that could carry this request. False for every
+    # row this release can produce, and the UI has to say so rather than showing a
+    # status that implies someone is dealing with it.
+    deliverable: bool = False

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from tripplan.db import DbConn
 from tripplan.domain.models import AnchorRef, GeoPoint, Itinerary, OriginRef, TripBrief
@@ -75,16 +75,24 @@ async def save_itinerary(conn: DbConn, itinerary: Itinerary) -> UUID:
             "SELECT COALESCE(max(version), 0) + 1 FROM itineraries WHERE request_id = $1",
             itinerary.request_id,
         )
-        payload = json.loads(itinerary.model_dump_json())
+        # The id is minted HERE rather than by the column default, so the payload
+        # can carry it. Serialising before the insert left `itinerary_id: null`
+        # inside the stored jsonb, which meant any consumer reading only the
+        # payload — the take-home strip was the first — could not tell which
+        # itinerary it was looking at.
+        resolved = uuid4()
+        stamped = itinerary.model_copy(update={"itinerary_id": resolved})
+        payload = json.loads(stamped.model_dump_json())
 
         itinerary_id = await conn.fetchval(
             """
             INSERT INTO itineraries (
-                request_id, version, schema_version, payload, composer,
+                id, request_id, version, schema_version, payload, composer,
                 llm_provider, llm_model, candidate_set_hash
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
             RETURNING id
             """,
+            resolved,
             itinerary.request_id,
             int(next_version),
             itinerary.schema_version,
@@ -94,7 +102,7 @@ async def save_itinerary(conn: DbConn, itinerary: Itinerary) -> UUID:
             itinerary.llm_model,
             itinerary.candidate_set_hash,
         )
-        resolved = UUID(str(itinerary_id))
+        assert UUID(str(itinerary_id)) == resolved
 
         for poi_id, day_number, slot in itinerary.referenced_poi_ids():
             await conn.execute(

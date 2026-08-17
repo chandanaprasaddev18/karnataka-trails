@@ -1,9 +1,10 @@
 # The shared taxonomy. One vocabulary, partitioned by `kind`.
 #
-# `interest` tags are the Phase 1 user-facing selection ("Plan by Interest").
-# `audience` and `season` tags are seeded now because they cost nothing and they
-# prove the partitioning works before Phase 5 needs `product_category` for the
-# marketplace. Nothing outside `interest` is exposed in the Phase 1 UI.
+# `interest` tags are the user-facing selection ("Plan by Interest").
+# `audience` and `season` tags are seeded but not exposed in the UI.
+# `product_category` tags are Phase 5's marketplace vocabulary — added as ROWS in
+# this same file, which is the whole payoff of partitioning one taxonomy by `kind`
+# in migration 001 instead of building a second one.
 #
 # display_order controls the order of the chips in the wizard.
 
@@ -106,3 +107,47 @@
   kind: season
   display_order: 40
   description: March to May; hot in the valleys, still pleasant on the ridges.
+
+# --- product categories (Phase 5) -------------------------------------------
+# What a place produces. These are facts about the district, independent of any
+# seller: `region_specialities` ties them to a region, and a vendor's products
+# hang off the same tag when a real vendor exists.
+#
+# Kept deliberately coarse. "Arabica coffee" is checkable; "artisanal
+# single-origin microlot" is a sales pitch, and this taxonomy is not for selling.
+
+- slug: coffee-beans
+  label: Coffee
+  kind: product_category
+  display_order: 500
+  description: Arabica and robusta from the estates that cover this district.
+
+- slug: spices
+  label: Spices
+  kind: product_category
+  display_order: 510
+  description: Pepper, cardamom and areca grown between the coffee rows.
+
+- slug: honey
+  label: Forest honey
+  kind: product_category
+  display_order: 520
+  description: Wild and apiary honey from the Ghats.
+
+- slug: jaggery
+  label: Jaggery
+  kind: product_category
+  display_order: 530
+  description: Cane and palm jaggery, pressed locally in season.
+
+- slug: handloom
+  label: Handloom & crafts
+  kind: product_category
+  display_order: 540
+  description: Woven cotton, cane and bamboo work.
+
+- slug: preserves
+  label: Preserves
+  kind: product_category
+  display_order: 550
+  description: Fruit, bamboo shoot and gooseberry preparations made at home.

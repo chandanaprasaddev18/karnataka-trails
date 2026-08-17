@@ -547,6 +547,204 @@ async def _write_detail(
 # ---------------------------------------------------------------------------
 
 
+class ProductSeed(BaseModel):
+    """One product of one vendor."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str
+    name: str
+    summary: str | None = None
+    price_paise: int | None = Field(default=None, ge=0)
+    unit: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    source: str
+    confidence: int = Field(ge=1, le=5)
+
+
+class VendorSeed(BaseModel):
+    """A seller, with its products nested — they are meaningless apart."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str
+    name: str
+    region: str
+    address: str | None = None
+    source: str
+    source_url: str | None = None
+    confidence: int = Field(ge=1, le=5)
+    tags: list[str] = Field(default_factory=list)
+    products: list[ProductSeed] = Field(default_factory=list)
+
+
+class SpecialitySeed(BaseModel):
+    """What a region is known for producing. No seller, no price."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    region: str
+    category: str
+    note: str
+    best_months: list[int] | None = None
+    source: str
+    source_url: str | None = None
+    confidence: int = Field(ge=1, le=5)
+    display_order: int = 100
+
+
+async def load_specialities(conn: DbConn, seeds_dir: Path, district: str) -> int:
+    """Load `region_specialities`. Returns the number of rows written.
+
+    These are published on load rather than gated: a speciality carries no seller,
+    no price and no contact, so the risk the publish gate exists to manage — a
+    traveller acting on an unverified commercial claim — is not present. What it
+    does carry is `source` and `data_confidence`, so a weak claim is still
+    identifiable in SQL.
+    """
+    path = seeds_dir / district / "specialities.yaml"
+    if not path.exists():
+        return 0
+    rows = [SpecialitySeed.model_validate(r) for r in _read_yaml_list(path)]
+
+    tags = await _tag_ids(conn)
+    regions = await _region_ids(conn)
+
+    async with conn.transaction():
+        for row in rows:
+            if row.region not in regions:
+                raise SeedError(f"speciality {row.category}: unknown region {row.region!r}")
+            if row.category not in tags:
+                raise SeedError(f"speciality {row.category}: unknown category tag")
+            await conn.execute(
+                """
+                INSERT INTO region_specialities
+                    (region_id, tag_id, note, best_months, source, source_url,
+                     data_confidence, display_order)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                ON CONFLICT (region_id, tag_id) DO UPDATE SET
+                    note            = EXCLUDED.note,
+                    best_months     = EXCLUDED.best_months,
+                    source          = EXCLUDED.source,
+                    source_url      = EXCLUDED.source_url,
+                    data_confidence = EXCLUDED.data_confidence,
+                    display_order   = EXCLUDED.display_order
+                """,
+                regions[row.region],
+                tags[row.category],
+                " ".join(row.note.split()),
+                row.best_months,
+                row.source,
+                row.source_url,
+                row.confidence,
+                row.display_order,
+            )
+
+    log.info("seed.specialities", count=len(rows), district=district)
+    return len(rows)
+
+
+async def load_vendors(conn: DbConn, seeds_dir: Path, district: str) -> int:
+    """Load vendors and their products as DRAFT. Returns the number of vendors.
+
+    Written as draft with `contact` empty, exactly like guides: a vendor is a
+    commercial party a traveller might try to pay, so a placeholder must never be
+    one click away from a payment. `publish` refuses source='placeholder'.
+    """
+    path = seeds_dir / district / "vendors.yaml"
+    if not path.exists():
+        return 0
+    vendors = [VendorSeed.model_validate(r) for r in _read_yaml_list(path)]
+
+    tags = await _tag_ids(conn)
+    regions = await _region_ids(conn)
+
+    async with conn.transaction():
+        for vendor in vendors:
+            if vendor.region not in regions:
+                raise SeedError(f"{vendor.slug}: unknown region {vendor.region!r}")
+            unknown = sorted(set(vendor.tags) - set(tags))
+            if unknown:
+                raise SeedError(f"{vendor.slug}: unknown tag slug(s) {unknown}")
+
+            vendor_id = await conn.fetchval(
+                """
+                INSERT INTO vendors (slug, name, region_id, address, contact,
+                                     source, source_url, data_confidence)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                ON CONFLICT (slug) DO UPDATE SET
+                    name            = EXCLUDED.name,
+                    region_id       = EXCLUDED.region_id,
+                    address         = EXCLUDED.address,
+                    source          = EXCLUDED.source,
+                    source_url      = EXCLUDED.source_url,
+                    data_confidence = EXCLUDED.data_confidence
+                    -- contact and status deliberately preserved on re-seed
+                RETURNING id
+                """,
+                vendor.slug,
+                vendor.name,
+                regions[vendor.region],
+                vendor.address,
+                {},  # contact: never seeded, see the file header
+                vendor.source,
+                vendor.source_url,
+                vendor.confidence,
+            )
+
+            await conn.execute("DELETE FROM vendor_tags WHERE vendor_id = $1", vendor_id)
+            for slug in vendor.tags:
+                await conn.execute(
+                    "INSERT INTO vendor_tags (vendor_id, tag_id) VALUES ($1,$2)",
+                    vendor_id,
+                    tags[slug],
+                )
+
+            for product in vendor.products:
+                unknown = sorted(set(product.tags) - set(tags))
+                if unknown:
+                    raise SeedError(f"{product.slug}: unknown tag slug(s) {unknown}")
+                product_id = await conn.fetchval(
+                    """
+                    INSERT INTO products (slug, vendor_id, name, summary, price_paise, unit,
+                                          region_id, source, data_confidence)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                    ON CONFLICT (slug) DO UPDATE SET
+                        name            = EXCLUDED.name,
+                        summary         = EXCLUDED.summary,
+                        price_paise     = EXCLUDED.price_paise,
+                        unit            = EXCLUDED.unit,
+                        source          = EXCLUDED.source,
+                        data_confidence = EXCLUDED.data_confidence
+                    RETURNING id
+                    """,
+                    product.slug,
+                    vendor_id,
+                    product.name,
+                    product.summary,
+                    product.price_paise,
+                    product.unit,
+                    regions[vendor.region],
+                    product.source,
+                    product.confidence,
+                )
+                await conn.execute("DELETE FROM product_tags WHERE product_id = $1", product_id)
+                for slug in product.tags:
+                    await conn.execute(
+                        "INSERT INTO product_tags (product_id, tag_id) VALUES ($1,$2)",
+                        product_id,
+                        tags[slug],
+                    )
+
+    log.info(
+        "seed.vendors",
+        vendors=len(vendors),
+        products=sum(len(v.products) for v in vendors),
+        district=district,
+    )
+    return len(vendors)
+
+
 async def load_guides(conn: DbConn, seeds_dir: Path, district: str) -> int:
     """Load guides and their POI links. Returns the number of guides written."""
     path = seeds_dir / district / "guides.yaml"
@@ -630,13 +828,16 @@ class PublishReport(BaseModel):
 
     promoted_pois: int = 0
     promoted_guides: int = 0
+    promoted_vendors: int = 0
+    promoted_products: int = 0
     skipped_placeholders: list[str] = Field(default_factory=list)
     skipped_low_confidence: list[str] = Field(default_factory=list)
     included_placeholders: bool = False
 
     def render(self) -> str:
         lines = [
-            f"promoted {self.promoted_pois} POI(s) and {self.promoted_guides} guide(s) "
+            f"promoted {self.promoted_pois} POI(s), {self.promoted_guides} guide(s), "
+            f"{self.promoted_vendors} vendor(s) and {self.promoted_products} product(s) "
             "to status='published'"
         ]
         if self.skipped_placeholders:
@@ -683,11 +884,23 @@ async def publish(
     report = PublishReport(included_placeholders=include_placeholders)
 
     async with conn.transaction():
+        # Every kind a traveller can be shown, not just POIs. Reporting only
+        # refused places meant a refused VENDOR — the row type with the most at
+        # stake, since a traveller might try to pay it — was dropped silently, and
+        # the summary read as if everything had been considered.
         refused = await conn.fetch(
             """
             SELECT slug, source, data_confidence FROM pois
-            WHERE status = 'draft'
-              AND (source = $1 OR data_confidence < $2)
+            WHERE status = 'draft' AND (source = $1 OR data_confidence < $2)
+            UNION ALL
+            SELECT slug, source, data_confidence FROM guides
+            WHERE status = 'draft' AND (source = $1 OR data_confidence < $2)
+            UNION ALL
+            SELECT slug, source, data_confidence FROM vendors
+            WHERE status = 'draft' AND (source = $1 OR data_confidence < $2)
+            UNION ALL
+            SELECT slug, source, data_confidence FROM products
+            WHERE status = 'draft' AND (source = $1 OR data_confidence < $2)
             """,
             PLACEHOLDER_SOURCE,
             min_confidence,
@@ -723,10 +936,44 @@ async def publish(
         )
         report.promoted_guides = len(guides)
 
+        # Vendors and products go through the same gate for a stronger reason than
+        # places do: a vendor is somebody a traveller might try to pay.
+        vendors = await conn.fetch(
+            f"""
+            UPDATE vendors SET status = 'published'
+            WHERE status = 'draft'
+              AND data_confidence >= $1
+              {placeholder_clause}
+            RETURNING slug
+            """,  # noqa: S608 — same literal clause
+            *((min_confidence,) if include_placeholders else (min_confidence, PLACEHOLDER_SOURCE)),
+        )
+        report.promoted_vendors = len(vendors)
+
+        # A product is only publishable if its vendor is: an orphan product would
+        # be an offer with nobody behind it.
+        products = await conn.fetch(
+            f"""
+            UPDATE products p SET status = 'published'
+            WHERE p.status = 'draft'
+              AND p.data_confidence >= $1
+              {placeholder_clause.replace("source", "p.source")}
+              AND EXISTS (
+                  SELECT 1 FROM vendors v
+                  WHERE v.id = p.vendor_id AND v.status = 'published'
+              )
+            RETURNING p.slug
+            """,  # noqa: S608 — same literal clause
+            *((min_confidence,) if include_placeholders else (min_confidence, PLACEHOLDER_SOURCE)),
+        )
+        report.promoted_products = len(products)
+
     log.info(
         "seed.publish",
         pois=report.promoted_pois,
         guides=report.promoted_guides,
+        vendors=report.promoted_vendors,
+        products=report.promoted_products,
         include_placeholders=include_placeholders,
     )
     return report

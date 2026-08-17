@@ -14,7 +14,7 @@ make env         # create .env from .env.example
 make install     # uv sync (Python 3.12)
 make up          # Postgres 17 + pgvector on :5434
 make migrate     # apply migrations
-make seed        # load taxonomy, regions, POIs (as status=draft)
+make seed        # load taxonomy, regions, POIs, vendors, specialities (draft)
 make publish     # promote fact-checked POIs to status=published
 make fetch-photos # download CC photos from Wikimedia Commons (optional)
 make plan        # generate an itinerary on the CLI
@@ -74,7 +74,16 @@ labelled fallback, plus a route map drawn from the returned road geometry. Done.
 An interactive basemap is not built: tiles would put a third-party request on
 every page view.
 
-**Phases 4-5** — Booking and marketplace: designed for, not built. Both need real
-partner data, and inventing it is the one thing this app refuses to do.
+**Phase 4** — Booking, built as **requests**. The app records what you want and
+says plainly that it cannot send it: no stay in our data has a verified contact,
+every guide is a placeholder, and there is no partner API or payment provider. The
+database refuses to mark anything `sent` or `confirmed` without a real channel.
+
+**Phase 5** — Marketplace, built **seller-free**. It lists what each district
+produces (tagged by region and by category, reusing the planner's own taxonomy) and
+surfaces it on the itinerary as "take home". It lists no vendors: every vendor
+record we hold is a development placeholder that the publish gate refuses, because
+a vendor is somebody a traveller might try to pay. The page states that plainly
+instead of looking like data that failed to load.
 
 See the phase map in `CLAUDE.md`.

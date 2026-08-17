@@ -28,6 +28,8 @@ from tripplan.store.seed import (
     load_interest_tags,
     load_pois,
     load_regions,
+    load_specialities,
+    load_vendors,
 )
 from tripplan.store.seed import (
     publish as publish_seed,
@@ -124,15 +126,19 @@ def seed_taxonomy() -> None:
 
 @app.command("seed-pois")
 def seed_pois(district: str = DEFAULT_DISTRICT) -> None:
-    """Load POIs and guides for a district. Rows land as status='draft'."""
+    """Load POIs, guides, vendors and specialities for a district, as status='draft'."""
 
     async def _run() -> None:
         cfg = get_settings()
         async with connect(cfg) as conn:
             report = await load_pois(conn, cfg.seeds_dir, district)
             guides = await load_guides(conn, cfg.seeds_dir, district)
+            vendors = await load_vendors(conn, cfg.seeds_dir, district)
+            # Specialities are not gated (no seller, no price) — see the loader.
+            specialities = await load_specialities(conn, cfg.seeds_dir, district)
         typer.echo(report.render())
-        typer.echo(f"loaded {guides} guide(s)")
+        typer.echo(f"loaded {guides} guide(s), {vendors} vendor(s)")
+        typer.echo(f"loaded {specialities} district speciality/ies (published on load)")
         typer.echo(
             "\nAll rows are status='draft' and invisible to the engine. "
             "Fact-check, then run 'make publish'."

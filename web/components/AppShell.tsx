@@ -49,16 +49,20 @@ const NAV: Group[] = [
   {
     heading: "My stuff",
     items: [
-      { label: "My trips", glyph: "≡", soon: "phase 4 — needs accounts" },
-      { label: "Saved", glyph: "♡", soon: "phase 4 — needs accounts" },
-      { label: "Bookings", glyph: "▤", soon: "phase 4" },
+      { label: "My trips", glyph: "≡", soon: "needs accounts to survive a device change" },
+      { label: "Saved", glyph: "♡", soon: "needs accounts" },
+      // Live as of Phase 4. It lists REQUESTS, not confirmed bookings — the page
+      // itself is explicit about the difference.
+      { label: "My requests", href: "/bookings", glyph: "▤" },
     ],
   },
   {
     heading: "Other",
     items: [
-      { label: "Guides", glyph: "☗", soon: "phase 4 — placeholder data only" },
-      { label: "Marketplace", glyph: "▣", soon: "phase 5" },
+      { label: "Guides", glyph: "☗", soon: "every seeded guide is a placeholder" },
+      // Live as of Phase 5. Lists what districts produce; lists no sellers, and
+      // says why on the page.
+      { label: "Marketplace", href: "/marketplace", glyph: "▣" },
     ],
   },
 ];

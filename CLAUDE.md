@@ -11,9 +11,11 @@ Location, by District), answers three questions (days, people, budget), and gets
 a day-by-day itinerary: route from their origin, stays, activities, places,
 guides where available, and a return leg.
 
-**Phase 1 scope (current):** *Plan by Interest* only, one district
-(Chikkamagaluru), card output, static travel-time estimates, no auth, no
-bookings, no marketplace.
+**Where it is now:** all three planning modes work; driving is measured on the real
+road network (OSRM) and drawn from the returned geometry; bookings exist as
+**requests** and the marketplace exists **without sellers** — see the section on
+what those two deliberately do not do. One district is seeded (Chikkamagaluru), and
+there are no accounts, so "my requests" is scoped to a browser session.
 
 ## Domain model — use these words
 
@@ -206,6 +208,12 @@ one that silently does nothing.
   `absolute inset-0` silently loses to the component's `relative`, the wrapper
   collapses to zero height, and the image renders nothing. Use
   `variant="cover"` for a background and `variant="sized"` for a thumbnail.
+- **A cross-origin response header is invisible to JS unless the server exposes
+  it.** The API mints a session token for a first-time booking and returns it in
+  `X-Session-Token`; without `expose_headers` on the CORS middleware the browser
+  could not read it, so the request was stored under an identity the client never
+  learned and "my requests" came back empty. The client now also mints its own
+  token when it has none, so the feature does not depend on that header at all.
 - **A grid child needs `min-w-0`.** Grid items default to `min-width: auto`, so
   the widest unbreakable descendant sets the column width and pushes the page
   past the viewport. This produced a 9px horizontal overflow on the itinerary at
@@ -227,6 +235,33 @@ one that silently does nothing.
   density — a 1280px file in a 1280px box reports 426. It is not a low-resolution
   image; check the file, not the DOM.
 
+## Bookings and the marketplace: what they deliberately do not do
+
+Phases 4 and 5 exist, and both stop short of the thing their names imply. That is a
+data judgement, not an unfinished feature, and changing it needs new data rather
+than new code.
+
+**A booking is a REQUEST.** No stay in the seed set has a verified contact
+(`stays.yaml` leaves it empty on purpose), every guide is a placeholder, and there
+is no partner API or payment provider. So `POST /api/bookings` records intent as
+`requested` with `sent_via = NULL`, and every surface says plainly that we could
+not deliver it. The status vocabulary names who is waiting on whom
+(`requested → sent → confirmed | declined | withdrawn`), and
+`bookings_sent_needs_channel` makes the database refuse `sent` or later without a
+real channel. **Only a partner integration may ever write `confirmed`.**
+
+**The marketplace lists places, not sellers.** `region_specialities` — what a
+district produces, keyed to a `product_category` tag — has data and is genuinely
+useful ("Take home" on an itinerary reads from it). `vendors` and `products` are
+built, tagged and tested, and every seeded row is a placeholder the publish gate
+refuses, because a vendor is somebody a traveller might try to PAY. The page states
+the number of sellers listed (zero) and how many vendor records are withheld,
+rather than looking like data that failed to load.
+
+The corollary for anyone extending this: adding a real stay contact or a real
+vendor is a seed-file change plus a review. If you find yourself writing a
+plausible phone number to make a screen look finished, stop.
+
 ## Known gaps and follow-ups
 
 - **Re-seeding preserves `status`.** Editing a fact on an already-published row
@@ -239,8 +274,12 @@ one that silently does nothing.
   instance for anything real.
 - **Scheduling ignores opening hours.** `place_details.opening_hours` is stored
   but unused; the engine only warns via `late_finish`.
-- **All seeded guides are synthetic placeholders**, so the guide path is only
-  exercised with `tripplan publish --include-placeholders` (local dev only).
+- **All seeded guides, vendors and products are synthetic placeholders**, so those
+  paths are only exercised with `tripplan publish --include-placeholders` (local
+  dev only). 18 rows are refused by the gate and each is named in its report.
+- **Bookings are scoped by browser session**, not by account, so a traveller's
+  requests do not follow them to another device. The page says so. Accounts would
+  populate `bookings.user_id`, which already exists.
 - **The LLM success path is unverified against a live provider** — no API key is
   available on this machine. Everything up to and including the HTTP call is
   tested, and the degradation path was verified live (401 -> fallback).
@@ -254,5 +293,5 @@ one that silently does nothing.
 | 1 — Plan by Interest, Chikkamagaluru, cards | **built** |
 | 2 — Plan by Location / District | **built** — `_scope_for` in `store/pois.py` |
 | 3 — Real maps routing + map view | **built** — OSRM provider + SVG route map. No basemap. |
-| 4 — Stay and guide booking | designed for; tables sit beside `guides` |
-| 5 — Marketplace | designed for; reuses `interest_tags` + `region_id` |
+| 4 — Stay and guide booking | **built as REQUESTS.** We cannot confirm a booking — see below |
+| 5 — Marketplace | **built, seller-free.** District specialities today; vendors gated |

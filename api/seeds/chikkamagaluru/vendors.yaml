@@ -1,0 +1,67 @@
+# Vendors and their products — Chikkamagaluru district.
+#
+# ------------------------------------------------------------------------
+# ALL PLACEHOLDERS. NONE OF THESE ARE REAL BUSINESSES.
+#
+# Same rule as `guides.yaml`, for the same reason, one step worse: a vendor is a
+# commercial party a traveller might try to PAY. Inventing a plausible estate name
+# and number could send money or a phone call to someone who does not exist, or
+# — by accident — to a real trader who never agreed to be listed.
+#
+# So every row here is explicitly synthetic: source='placeholder', confidence=1,
+# empty contact, and a name that reads as a role rather than a business. `publish`
+# refuses them, so the marketplace shows the district's specialities and says
+# plainly that it lists no sellers yet.
+#
+# They exist for one reason: so the vendor -> product -> tag -> region path is
+# exercised end to end in local development, via
+# `tripplan publish --include-placeholders`.
+#
+# TO ADD A REAL VENDOR: get their consent, fill `contact` and `address`, set
+# source to something checkable (their own site, a co-operative register), raise
+# confidence, and set verified_at once a human has spoken to them. Anything still
+# marked source='placeholder' must NOT be promoted.
+# ------------------------------------------------------------------------
+
+- slug: vendor-estate-shop-placeholder
+  name: Coffee estate shop (placeholder)
+  region: chikkamagaluru
+  address: null
+  source: placeholder
+  confidence: 1
+  tags: [coffee-beans, coffee-country]
+  products:
+    - slug: product-estate-arabica-placeholder
+      name: Estate arabica, roasted (placeholder)
+      summary: Whole bean from the estate's own crop. Placeholder record.
+      price_paise: 45000
+      unit: 500 g
+      tags: [coffee-beans]
+      source: placeholder
+      confidence: 1
+
+    - slug: product-estate-pepper-placeholder
+      name: Estate black pepper (placeholder)
+      summary: Vine pepper grown among the coffee. Placeholder record.
+      price_paise: 32000
+      unit: 250 g
+      tags: [spices]
+      source: placeholder
+      confidence: 1
+
+- slug: vendor-mudigere-jaggery-unit-placeholder
+  name: Jaggery pressing unit (placeholder)
+  region: mudigere
+  address: null
+  source: placeholder
+  confidence: 1
+  tags: [jaggery]
+  products:
+    - slug: product-cane-jaggery-placeholder
+      name: Unrefined cane jaggery (placeholder)
+      summary: Dark blocks pressed in season. Placeholder record.
+      price_paise: 12000
+      unit: 1 kg
+      tags: [jaggery]
+      source: placeholder
+      confidence: 1

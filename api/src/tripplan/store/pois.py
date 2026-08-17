@@ -178,7 +178,7 @@ async def fetch_candidates(
             JOIN interest_tags it ON it.id = pt.tag_id
             GROUP BY pt.poi_id
         )
-        SELECT p.id, p.kind, p.name, p.summary, p.lat, p.lon,
+        SELECT p.id, p.slug, p.kind, p.name, p.summary, p.lat, p.lon,
                p.typical_duration_minutes, p.cost_band,
                p.cost_min_paise, p.cost_max_paise, p.difficulty,
                p.is_repeatable, p.media, p.data_confidence,
@@ -217,6 +217,7 @@ async def fetch_candidates(
             Candidate(
                 ref=f"{_REF_PREFIX[kind]}{index}",
                 poi_id=poi_id,
+                slug=str(row["slug"]),
                 kind=kind,
                 name=str(row["name"]),
                 summary=str(row["summary"]),

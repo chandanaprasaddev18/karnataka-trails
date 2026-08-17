@@ -66,6 +66,7 @@ def _stay_card(stay: Candidate) -> StayCard:
         per_night = Money(min_paise=int(low or high or 0), max_paise=int(high or low or 0))
     return StayCard(
         poi_id=stay.poi_id,
+        slug=stay.slug,
         name=stay.name,
         stay_type=str(detail.get("stay_type", "other")),
         region=stay.region,

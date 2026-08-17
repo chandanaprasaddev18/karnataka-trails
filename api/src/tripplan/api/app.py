@@ -22,6 +22,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from tripplan.api.schemas import (
     AnchorOut,
+    BookingOut,
+    BookingRequestIn,
     DistrictOut,
     HealthOut,
     InterestOut,
@@ -36,6 +38,8 @@ from tripplan.engine.brief import BriefError, build_brief
 from tripplan.jobs import queue
 from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging, get_logger
+from tripplan.store import bookings as booking_store
+from tripplan.store import market as market_store
 from tripplan.store import pois as poi_store
 from tripplan.store.itineraries import create_request, latest_for_request
 
@@ -67,6 +71,11 @@ app.add_middleware(
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    # A cross-origin response header is invisible to JavaScript unless it is
+    # exposed here. Without this, the token minted for a first-time booking never
+    # reached the browser: the request was stored under a token the client could
+    # not learn, so "my requests" came back empty and the row was stranded.
+    expose_headers=["X-Session-Token"],
 )
 
 
@@ -454,3 +463,161 @@ async def get_itinerary(itinerary_id: UUID, conn: Conn) -> dict[str, object]:
     if payload is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="unknown itinerary")
     return dict(payload)
+
+
+# ---------------------------------------------------------------------------
+# bookings (Phase 4)
+# ---------------------------------------------------------------------------
+# These endpoints record a REQUEST. They cannot book anything: we hold no verified
+# contact for any stay, every seeded guide is a placeholder, and there is no
+# partner API or payment provider. `deliverable` on the response says so per row,
+# and the database refuses `sent`/`confirmed` without a real channel.
+
+
+def _booking_out(booking: booking_store.Booking) -> BookingOut:
+    return BookingOut(
+        id=booking.id,
+        kind=booking.kind,
+        status=booking.status,
+        party_size=booking.party_size,
+        check_in=booking.check_in,
+        check_out=booking.check_out,
+        note=booking.note,
+        itinerary_id=booking.itinerary_id,
+        day_number=booking.day_number,
+        target=booking.target.model_dump(mode="json"),
+        sent_via=booking.sent_via,
+        created_at=booking.created_at,
+        deliverable=booking.deliverable,
+    )
+
+
+@app.post(
+    "/api/bookings",
+    response_model=BookingOut,
+    status_code=status.HTTP_201_CREATED,
+    tags=["bookings"],
+)
+async def create_booking(
+    payload: BookingRequestIn,
+    conn: Conn,
+    response: Response,
+    x_session_token: Annotated[str | None, Header()] = None,
+) -> BookingOut:
+    """Record a booking request against a PUBLISHED stay, guide or activity.
+
+    201, not 200: a row was created. It is deliberately not 202 — nothing is being
+    processed asynchronously, because nothing is being sent anywhere.
+    """
+    target = await booking_store.resolve_target(conn, kind=payload.kind, slug=payload.slug)
+    if target is None:
+        # Draft rows are unbookable for the same reason they never reach an
+        # itinerary: nobody has checked them.
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"no published {payload.kind} with slug '{payload.slug}'",
+        )
+
+    session_token = x_session_token or secrets.token_urlsafe(24)
+    try:
+        booking_id = await booking_store.request_booking(
+            conn,
+            session_token=session_token,
+            target=target,
+            party_size=payload.party_size,
+            check_in=payload.check_in,
+            check_out=payload.check_out,
+            note=payload.note,
+            itinerary_id=payload.itinerary_id,
+            day_number=payload.day_number,
+        )
+    except booking_store.BookingConflictError as exc:
+        # 409, not a silent second row: the client already has this request open.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"message": "you already have an open request for this", "booking_id": str(exc)},
+        ) from exc
+
+    response.headers["X-Session-Token"] = session_token
+    rows = await booking_store.list_bookings(conn, session_token=session_token)
+    created = next(b for b in rows if b.id == booking_id)
+    return _booking_out(created)
+
+
+@app.get("/api/bookings", response_model=list[BookingOut], tags=["bookings"])
+async def list_bookings(
+    conn: Conn,
+    x_session_token: Annotated[str | None, Header()] = None,
+) -> list[BookingOut]:
+    """This browser's requests. No token means no requests — not everyone's."""
+    if not x_session_token:
+        return []
+    rows = await booking_store.list_bookings(conn, session_token=x_session_token)
+    return [_booking_out(b) for b in rows]
+
+
+@app.post("/api/bookings/{booking_id}/withdraw", response_model=BookingOut, tags=["bookings"])
+async def withdraw_booking(
+    booking_id: UUID,
+    conn: Conn,
+    x_session_token: Annotated[str | None, Header()] = None,
+) -> BookingOut:
+    """Withdraw a request. Scoped by session token, so one browser cannot cancel another's."""
+    if not x_session_token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="a session token is required")
+    changed = await booking_store.withdraw(
+        conn, session_token=x_session_token, booking_id=booking_id
+    )
+    if not changed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="unknown or already closed request")
+    rows = await booking_store.list_bookings(conn, session_token=x_session_token)
+    return _booking_out(next(b for b in rows if b.id == booking_id))
+
+
+# ---------------------------------------------------------------------------
+# marketplace (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/market/specialities", tags=["market"])
+async def list_specialities(
+    conn: Conn,
+    district: str | None = None,
+    itinerary_id: UUID | None = None,
+) -> dict[str, Any]:
+    """What the places in scope are known for producing, plus how real this is.
+
+    `itinerary_id` narrows to the regions a trip actually passes through, read from
+    `itinerary_pois` — so the take-home strip on an itinerary cannot drift from the
+    stops that were planned.
+
+    The response carries `stats` alongside the rows because the honest headline of
+    this feature is a number: we list zero sellers. A page that showed six
+    specialities without saying that would imply a marketplace that does not exist.
+    """
+    region_slugs = None
+    if itinerary_id is not None:
+        region_slugs = await market_store.region_slugs_for_itinerary(conn, itinerary_id)
+        if not region_slugs:
+            return {"specialities": [], "stats": (await market_store.stats(conn)).model_dump()}
+
+    rows = await market_store.specialities(
+        conn,
+        district_slug=district if itinerary_id is None else None,
+        region_slugs=region_slugs,
+    )
+    return {
+        "specialities": [r.model_dump(mode="json") for r in rows],
+        "stats": (await market_store.stats(conn)).model_dump(),
+    }
+
+
+@app.get("/api/market/products", tags=["market"])
+async def list_products(
+    conn: Conn,
+    category: str | None = None,
+    region: str | None = None,
+) -> list[dict[str, Any]]:
+    """Published products. Empty until a real vendor consents to being listed."""
+    rows = await market_store.products_for(conn, category_slug=category, region_slug=region)
+    return [r.model_dump(mode="json") for r in rows]

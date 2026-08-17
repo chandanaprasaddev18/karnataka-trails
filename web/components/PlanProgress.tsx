@@ -140,7 +140,15 @@ export function PlanProgress({ requestId }: { requestId: string }) {
     );
   }
 
-  return <ItineraryView itinerary={status.itinerary} />;
+  // `itineraryId` is passed separately: itineraries saved before the id was
+  // minted application-side carry `itinerary_id: null` inside their payload, and
+  // the take-home strip needs an id to scope itself by.
+  return (
+    <ItineraryView
+      itinerary={status.itinerary}
+      itineraryId={status.itinerary_id ?? status.itinerary.itinerary_id}
+    />
+  );
 }
 
 /** Page padding for the non-itinerary states; ItineraryView brings its own. */

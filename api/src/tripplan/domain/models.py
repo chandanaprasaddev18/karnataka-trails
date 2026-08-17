@@ -163,6 +163,10 @@ class Candidate(BaseModel):
 
     ref: str
     poi_id: UUID
+    # The stable public identifier. Carried so downstream features can point at a
+    # row without exposing a UUID — a booking request names a slug, and a slug
+    # either resolves against published data or it does not.
+    slug: str = ""
     kind: PoiKind
     name: str
     summary: str
@@ -315,6 +319,8 @@ class ItineraryItem(BaseModel):
 
 class StayCard(BaseModel):
     poi_id: UUID
+    # Needed to request this stay (Phase 4). Additive field.
+    slug: str = ""
     name: str
     stay_type: str
     # Stays have no Commons photograph, so the card falls back to its locality.

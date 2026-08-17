@@ -7,6 +7,8 @@ forever. Each gets a test that actually exercises the condition.
 
 from __future__ import annotations
 
+import contextlib
+
 import asyncpg
 import pytest
 
@@ -232,3 +234,39 @@ async def test_status_returns_the_most_recent_job(seeded: asyncpg.Connection) ->
     found = await queue.status(seeded, request_id)
     assert found is not None
     assert found["status"] == "queued"
+
+
+async def test_an_embedded_worker_does_not_steal_the_servers_signal_handlers() -> None:
+    """`run_worker(install_signal_handlers=False)` must leave existing handlers alone.
+
+    `loop.add_signal_handler` REPLACES the handler for a signal. The in-process
+    worker installed its own, which silently disabled uvicorn's: SIGTERM stopped the
+    worker and left the web server running forever. Locally that was a process that
+    would not die; on a managed host it means every redeploy hangs until the platform
+    force-kills the container, cutting in-flight requests.
+
+    Asserted by installing a sentinel handler and checking the worker did not
+    displace it — a unit test, because reproducing it end to end needs a real signal
+    delivered to a real server.
+    """
+    import asyncio
+    import signal
+
+    from tripplan.jobs.worker import run_worker
+
+    loop = asyncio.get_running_loop()
+    fired = asyncio.Event()
+    loop.add_signal_handler(signal.SIGTERM, fired.set)
+    try:
+        task = asyncio.create_task(run_worker(install_signal_handlers=False))
+        await asyncio.sleep(0.2)  # long enough to have registered handlers if it would
+
+        # The sentinel must still be the one that runs.
+        signal.raise_signal(signal.SIGTERM)
+        await asyncio.wait_for(fired.wait(), timeout=2)
+
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
+    finally:
+        loop.remove_signal_handler(signal.SIGTERM)

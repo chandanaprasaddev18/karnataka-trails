@@ -119,12 +119,29 @@ class Worker:
             await queue.fail(conn, job, code="unexpected", detail=f"{type(exc).__name__}: {exc}")
 
 
-async def run_worker(settings: Settings | None = None) -> None:
+async def run_worker(
+    settings: Settings | None = None,
+    *,
+    install_signal_handlers: bool = True,
+) -> None:
+    """Run the polling loop until stopped.
+
+    `install_signal_handlers` must be FALSE when this runs inside another server.
+    `loop.add_signal_handler` REPLACES any existing handler for that signal, so an
+    embedded worker that installs its own quietly disables uvicorn's: SIGTERM then
+    stopped the worker and left the web server running forever. Locally that looked
+    like a process that would not die; on a managed host every redeploy would hang
+    until the platform force-killed the container, cutting in-flight requests.
+
+    The API's lifespan cancels the task instead, which is the right mechanism for a
+    component that does not own the process.
+    """
     worker = Worker(settings)
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):
-            loop.add_signal_handler(sig, worker.request_stop)
+    if install_signal_handlers:
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            with contextlib.suppress(NotImplementedError):
+                loop.add_signal_handler(sig, worker.request_stop)
     await worker.run()
 
 

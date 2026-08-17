@@ -67,7 +67,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         worker_task: asyncio.Task[None] | None = None
         if settings.worker.in_process:
             # One process is all a free tier gives you. See WorkerSettings.
-            worker_task = asyncio.create_task(run_worker(settings), name="in-process-worker")
+            worker_task = asyncio.create_task(
+                # Not its own signal handlers: they would replace uvicorn's and the
+                # server would never shut down. Cancellation below is the mechanism.
+                run_worker(settings, install_signal_handlers=False),
+                name="in-process-worker",
+            )
             log.info("api.worker_in_process")
 
         log.info("api.started", database=settings.db.safe_dsn())

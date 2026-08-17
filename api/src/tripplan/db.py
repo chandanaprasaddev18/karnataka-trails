@@ -111,8 +111,12 @@ def discover_migrations(migrations_dir: Path) -> list[tuple[str, str, str]]:
     return out
 
 
-async def apply_migrations(conn: asyncpg.Connection, migrations_dir: Path) -> list[str]:
-    """Apply every pending migration. Returns the filenames applied."""
+async def apply_migrations(conn: DbConn, migrations_dir: Path) -> list[str]:
+    """Apply every pending migration. Returns the filenames applied.
+
+    Takes `DbConn`, not a bare Connection: the API applies migrations on start-up
+    from a POOL connection, and a pool hands out a proxy rather than a Connection.
+    """
     await conn.execute(_MIGRATIONS_TABLE)
     rows = await conn.fetch("SELECT filename, checksum FROM schema_migrations")
     applied = {r["filename"]: r["checksum"] for r in rows}

@@ -87,6 +87,10 @@ export function PhotoFrame({
         fill
         sizes={sizes}
         priority={priority}
+        // Remote images go straight from Wikimedia's CDN to the browser. Routing
+        // them through our optimizer would put every viewer's images on one server
+        // IP, which is exactly what got 429ed before.
+        unoptimized={REMOTE_PHOTOS}
         className="object-cover"
       />
       {showCredit && <PhotoCredit photo={photo} />}
@@ -115,11 +119,24 @@ export function PhotoCredit({ photo }: { photo: Photo }) {
 /**
  * Where to load the bytes from.
  *
- * The locally downloaded copy wins. Hotlinking Wikimedia was tried and their CDN
- * returns 429 under mild bursts, so the remote URL is only a fallback for a row
- * whose download failed.
+ * Locally, the downloaded copy wins: `web/public/photos/` holds 73 MB of images
+ * that are gitignored, so nothing about a page view depends on Wikimedia being up.
+ *
+ * A DEPLOYED build cannot use them — 73 MB has no business in git — so
+ * `NEXT_PUBLIC_PHOTO_SOURCE=remote` switches to the Commons URL that every photo
+ * row already carries. That is not a regression of the earlier 429 problem: those
+ * came from our own server fetching dozens of images through Next's optimizer from
+ * one IP. `unoptimized` (below) means each viewer's browser fetches Wikimedia's
+ * CDN directly, which is what a CDN is for.
+ *
+ * The honest limitation: if Wikimedia throttles a viewer, that viewer sees the
+ * gradient fallback rather than the photograph. Putting the files on object storage
+ * is the fix when this stops being a prototype.
  */
+const REMOTE_PHOTOS = process.env.NEXT_PUBLIC_PHOTO_SOURCE === "remote";
+
 function photoSrc(photo: Photo): string {
+  if (REMOTE_PHOTOS) return photo.thumb_url ?? photo.url;
   return photo.local_path ?? photo.thumb_url ?? photo.url;
 }
 

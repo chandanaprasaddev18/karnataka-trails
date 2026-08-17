@@ -22,6 +22,17 @@ make plan        # generate an itinerary on the CLI
 
 `make` with no target lists every command.
 
+## Hosting
+
+`DEPLOY.md` has the free-tier runbook: Neon for Postgres, Render for the API (which
+runs the job worker in-process, because a free tier gives you one process), Vercel
+for the frontend. The API image is `api/Dockerfile`; `render.yaml` is a blueprint.
+
+What the free tier costs is written down there rather than discovered: the API sleeps
+after ~15 minutes idle and the next request pays a 30-50s cold start, nothing drains
+the job queue while it sleeps, and photographs come from Wikimedia's CDN in
+production because the downloaded 73 MB is gitignored.
+
 ## Layout
 
 | Path | What |

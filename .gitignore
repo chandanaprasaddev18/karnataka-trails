@@ -33,3 +33,7 @@ next-env.d.ts
 # Geocoder response cache written by api/tools/import_directory.py. Regenerated on
 # demand; the reviewed OUTPUT (seed YAML + geocode_aliases.yaml) is what we keep.
 api/seeds/.geocode_cache.json
+
+# Next.js build output
+web/.next/
+web/out/

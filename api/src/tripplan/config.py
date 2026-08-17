@@ -32,7 +32,17 @@ class DbSettings(BaseModel):
     min_pool_size: int = 1
     max_pool_size: int = 10
 
+    # A whole connection string, which is what every managed Postgres hands you
+    # (Neon, Supabase, Render). When set it WINS over the parts above: splitting a
+    # provider's URL into five env vars is five chances to typo a password.
+    #
+    # Kept as SecretStr so it cannot be logged by accident — the URL contains the
+    # password, which is exactly why `safe_dsn` masks it below.
+    url: SecretStr = SecretStr("")
+
     def dsn(self) -> str:
+        if self.url.get_secret_value():
+            return self.url.get_secret_value()
         return (
             f"postgresql://{self.user}:{self.password.get_secret_value()}"
             f"@{self.host}:{self.port}/{self.database}"
@@ -40,6 +50,15 @@ class DbSettings(BaseModel):
 
     def safe_dsn(self) -> str:
         """DSN with the password masked — safe to log."""
+        raw = self.url.get_secret_value()
+        if raw:
+            # Show host and database, hide the credentials.
+            without_scheme = raw.split("://", 1)[-1]
+            if "@" in without_scheme:
+                creds, rest = without_scheme.split("@", 1)
+                user = creds.split(":", 1)[0]
+                return f"postgresql://{user}:***@{rest}"
+            return "postgresql://***"
         return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.database}"
 
 
@@ -126,6 +145,15 @@ class WorkerSettings(BaseModel):
     # A job whose lock is older than this is considered abandoned and may be
     # re-claimed. Must exceed the worst-case stage runtime.
     lock_timeout_seconds: int = Field(default=300, ge=30)
+    # Run the worker loop INSIDE the API process.
+    #
+    # A separate process is the right design and stays the default: composition
+    # takes tens of seconds and a crash in it should not take HTTP down. But every
+    # free hosting tier gives you one process, and an itinerary that never gets
+    # built is worse than one built next to the web server. The queue mechanics are
+    # unchanged — the same SKIP LOCKED claim, the same lock timeout — so adding a
+    # real worker later needs no migration and no code change.
+    in_process: bool = False
 
 
 class Settings(BaseSettings):
@@ -147,6 +175,21 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     log_json: bool = False
+
+    # Browser origins allowed to call the API. Local dev by default; a deployment
+    # sets its own (TRIPPLAN_CORS_ORIGINS='https://foo.vercel.app'). Comma
+    # separated, and never "*": these endpoints echo a session token, so a
+    # wildcard would let any page read another site's requests.
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # Apply pending migrations when the API starts. Off locally, where `make
+    # migrate` is explicit and a surprise schema change during a test run would be
+    # its own bug. On for a managed host, where there is no shell to run it from.
+    migrate_on_start: bool = False
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def migrations_dir(self) -> Path:

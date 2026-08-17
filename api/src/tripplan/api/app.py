@@ -10,6 +10,8 @@ request.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -33,9 +35,10 @@ from tripplan.api.schemas import (
     PlanStatusOut,
 )
 from tripplan.config import Settings, get_settings
-from tripplan.db import pool
+from tripplan.db import apply_migrations, pool
 from tripplan.engine.brief import BriefError, build_brief
 from tripplan.jobs import queue
+from tripplan.jobs.worker import run_worker
 from tripplan.llm.factory import build_composer
 from tripplan.observability.logging import configure_logging, get_logger
 from tripplan.store import bookings as booking_store
@@ -53,8 +56,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with pool(settings) as db_pool:
         app.state.pool = db_pool
         app.state.settings = settings
+
+        if settings.migrate_on_start:
+            # A managed host has no shell to run `make migrate` from, and a schema
+            # older than the code is a guaranteed 500 on the first request.
+            async with db_pool.acquire() as conn:
+                applied = await apply_migrations(conn, settings.migrations_dir)
+            log.info("api.migrated", applied=len(applied))
+
+        worker_task: asyncio.Task[None] | None = None
+        if settings.worker.in_process:
+            # One process is all a free tier gives you. See WorkerSettings.
+            worker_task = asyncio.create_task(run_worker(settings), name="in-process-worker")
+            log.info("api.worker_in_process")
+
         log.info("api.started", database=settings.db.safe_dsn())
-        yield
+        try:
+            yield
+        finally:
+            if worker_task is not None:
+                # Let the in-flight job finish rather than stranding a half-written
+                # itinerary, but do not hang a deploy forever waiting for it.
+                worker_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, TimeoutError):
+                    await asyncio.wait_for(worker_task, timeout=20)
     log.info("api.stopped")
 
 
@@ -65,10 +90,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# The Next.js dev server runs on :3000. Tightened per environment in deployment.
+# Origins come from config so a deployment can name its own frontend without a code
+# change. Never "*": these endpoints echo a session token.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=get_settings().cors_origin_list,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
     # A cross-origin response header is invisible to JavaScript unless it is

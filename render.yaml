@@ -1,0 +1,46 @@
+# Render blueprint for the API (and its in-process worker).
+#
+# WHY RENDER FOR THE API AND NOT VERCEL: this process must stay alive to drain the
+# job queue. Vercel runs serverless functions, which cannot hold a polling loop, so
+# the frontend goes there and the API goes here.
+#
+# WHY NOT RENDER'S POSTGRES: its free database expires. Neon's free tier does not,
+# and it ships pgvector, which migration 001 requires. Set DATABASE_URL below to the
+# Neon connection string.
+#
+# WHAT THE FREE TIER COSTS YOU, stated plainly so nobody is surprised:
+#   * the instance sleeps after ~15 minutes idle; the next request pays ~30-50s of
+#     cold start, and the first itinerary after a wake-up is slower still
+#   * 512 MB RAM and a shared CPU, so composition is not fast
+#   * while asleep NOTHING drains the queue: a request enqueued as the instance
+#     stops will sit until the next visitor wakes it. The itinerary page polls, so
+#     it recovers on its own — it just looks slow.
+services:
+  - type: web
+    name: karnataka-trails-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    plan: free
+    region: singapore # closest free region to the data and its likely audience
+    healthCheckPath: /health
+    envVars:
+      # Neon connection string, set in the Render dashboard — never committed.
+      # Include `?sslmode=require`.
+      - key: TRIPPLAN_DB__URL
+        sync: false
+      # The deployed frontend's origin. No wildcard: these endpoints echo a
+      # session token.
+      - key: TRIPPLAN_CORS_ORIGINS
+        sync: false
+      # One process has to do both jobs on a free tier.
+      - key: TRIPPLAN_WORKER__IN_PROCESS
+        value: "true"
+      - key: TRIPPLAN_MIGRATE_ON_START
+        value: "true"
+      - key: TRIPPLAN_LOG_JSON
+        value: "true"
+      # Real road distances. The public OSRM demo is fine for a prototype's
+      # volume; point this at your own instance for anything heavier.
+      - key: TRIPPLAN_ROUTING__PROVIDER
+        value: osrm

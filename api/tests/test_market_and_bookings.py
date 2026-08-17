@@ -36,6 +36,8 @@ from tripplan.store.seed import (
 )
 
 DISTRICT = "chikkamagaluru"
+# The only session tokens this suite may touch.
+_SESSIONS = ("session-a", "session-b")
 
 
 @pytest_asyncio.fixture
@@ -48,7 +50,12 @@ async def seeded(db: asyncpg.Connection) -> asyncpg.Connection:
     await load_vendors(db, cfg.seeds_dir, DISTRICT)
     await load_specialities(db, cfg.seeds_dir, DISTRICT)
     await publish(db, min_confidence=2)
-    await db.execute("DELETE FROM bookings")
+    # Only this suite's own rows. `DELETE FROM bookings` also wiped whatever a
+    # developer had saved in the browser, since the tests share the dev database —
+    # a test that destroys the data you are looking at is worse than a dirty table.
+    await db.execute(
+        "DELETE FROM bookings WHERE session_token = ANY($1::text[])", list(_SESSIONS)
+    )
     return db
 
 

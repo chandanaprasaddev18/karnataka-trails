@@ -52,7 +52,7 @@ State these to anyone you share the link with, because they are visible:
 
    ```bash
    cd trip-planner
-   export TRIPPLAN_DB__URL='<neon pooled connection string>'
+   export TRIPPLAN_DB__URL='<neon DIRECT connection string>'
    make migrate                       # 8 migrations
    uv --project api run tripplan seed-taxonomy
    uv --project api run tripplan seed-pois          # all six districts

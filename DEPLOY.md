@@ -64,6 +64,17 @@ State these to anyone you share the link with, because they are visible:
    `fetch-photos` is what fills the `media` column, and the production frontend
    reads the Commons URL out of it. Skip it and the site has no photographs.
 
+   **Faster alternative if you already have a local database with photographs you
+   have reviewed** — copies the assignments instead of asking Commons again, which
+   also means the deployment shows the set somebody actually checked rather than
+   whatever Commons returns today:
+
+   ```bash
+   uv --project api run python api/tools/copy_media.py \
+     --from 'postgresql://tripplan:tripplan_dev_only@localhost:5434/tripplan' \
+     --to "$TRIPPLAN_DB__URL"
+   ```
+
 ## 2. API — Render
 
 1. https://render.com → sign in with GitHub → **New** → **Blueprint** → pick

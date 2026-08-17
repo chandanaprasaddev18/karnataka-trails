@@ -162,9 +162,26 @@ def compose(
             key=lambda c: (-c.match_weight, -c.data_confidence, c.name),
         )
 
+        # Share what is left across the days that are left.
+        #
+        # Filling each day to its time budget is right when the district has more
+        # places than the trip can use — and it silently breaks a district that does
+        # not. Mysuru holds five places: a three-day trip put all of them on day 1
+        # and produced two empty days, which validation treats as fatal when there
+        # is no bed to justify them, so the whole job failed. Front-loading was
+        # invisible for as long as the only seeded district had forty places.
+        #
+        # `share` is the ceiling on today's intake, not a target: the time budget
+        # still applies, and a district with plenty to offer is unaffected because
+        # the share exceeds what a day can hold anyway.
+        remaining_days = brief.days - day_number + 1
+        share = max(1, -(-len(pool) // remaining_days)) if pool else 1
+
         picked: list[Candidate] = []
         spent = 0
         for candidate in pool:
+            if len(picked) >= share:
+                break
             cost = candidate.duration_minutes or DEFAULT_ITEM_MINUTES
             if spent + cost > budget:
                 # No room left today. An arrival day legitimately ends with zero

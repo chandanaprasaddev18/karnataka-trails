@@ -27,11 +27,14 @@ export function SearchBar() {
   const box = useRef<HTMLDivElement | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // "Too short to search" is a fact about the current query, not a state change:
+  // computing it during render avoids a setState-inside-effect cascade, and the
+  // list can never lag a keystroke behind the box.
+  const tooShort = query.trim().length < 2;
+  const visible = tooShort ? [] : results;
+
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
+    if (tooShort) return;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
       fetchAnchors(query)
@@ -44,7 +47,7 @@ export function SearchBar() {
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
-  }, [query]);
+  }, [query, tooShort]);
 
   // Clicking anywhere else closes the panel. Without this it stays open behind
   // the next thing the user does, which reads as a stuck dropdown.
@@ -72,16 +75,16 @@ export function SearchBar() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={(event) => {
-          if (!results.length) return;
+          if (!visible.length) return;
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setActive((i) => (i + 1) % results.length);
+            setActive((i) => (i + 1) % visible.length);
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
-            setActive((i) => (i - 1 + results.length) % results.length);
+            setActive((i) => (i - 1 + visible.length) % visible.length);
           } else if (event.key === "Enter") {
             event.preventDefault();
-            go(results[active]);
+            go(visible[active]);
           } else if (event.key === "Escape") {
             setOpen(false);
           }
@@ -97,15 +100,15 @@ export function SearchBar() {
         ⌕
       </span>
 
-      {open && query.trim().length >= 2 && (
+      {open && !tooShort && (
         <div className="absolute top-12 right-0 left-0 z-20 overflow-hidden rounded-xl border border-line bg-ink-900 shadow-2xl">
-          {results.length === 0 ? (
+          {visible.length === 0 ? (
             <p className="px-4 py-3 text-[12.5px] text-muted-dim">
               Nothing by that name in our data yet. Only Chikkamagaluru is seeded so far.
             </p>
           ) : (
             <ul>
-              {results.map((anchor, index) => (
+              {visible.map((anchor, index) => (
                 <li key={`${anchor.kind}-${anchor.slug}`}>
                   <button
                     type="button"

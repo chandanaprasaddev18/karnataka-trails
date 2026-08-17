@@ -70,11 +70,14 @@ export function PlanWizard({
   mode,
   initialInterest,
   initialAnchor,
+  initialDistrict,
 }: {
   mode: PlanMode;
   initialInterest?: string;
   /** Slug handed over by the global search, preselected once it resolves. */
   initialAnchor?: string;
+  /** Slug handed over by a district card on the home page. */
+  initialDistrict?: string;
 }) {
   const router = useRouter();
 
@@ -82,7 +85,7 @@ export function PlanWizard({
   const [interests, setInterests] = useState<Interest[] | null>(null);
   const [selected, setSelected] = useState<string[]>(initialInterest ? [initialInterest] : []);
   const [districts, setDistricts] = useState<District[] | null>(null);
-  const [district, setDistrict] = useState("chikkamagaluru");
+  const [district, setDistrict] = useState(initialDistrict ?? "chikkamagaluru");
   const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [query, setQuery] = useState(initialAnchor ?? "");
@@ -132,21 +135,24 @@ export function PlanWizard({
     };
   }, [query, mode]);
 
-  // Preselect the anchor the search handed over. Matched against the server's
-  // results rather than trusted from the URL, so a slug we do not hold selects
-  // nothing instead of submitting an anchor the engine will reject.
-  useEffect(() => {
-    if (!initialAnchor || anchor) return;
-    const match = anchors.find((a) => a.slug === initialAnchor);
-    if (match) setAnchor(match);
-  }, [initialAnchor, anchors, anchor]);
+  // The anchor in play: what the user picked, or the one the global search handed
+  // over once the server's results confirm we hold it. Derived rather than pushed
+  // into state by an effect — an effect here caused a second render pass on every
+  // search result, and needed care to avoid clobbering a later manual choice.
+  //
+  // Matched against the server's list rather than trusted from the URL, so a slug
+  // we do not hold selects nothing instead of submitting something the engine will
+  // reject.
+  const effectiveAnchor =
+    anchor ?? (initialAnchor ? anchors.find((a) => a.slug === initialAnchor) ?? null : null);
 
   const toggle = (slug: string) =>
     setSelected((current) =>
       current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
     );
 
-  const ready = mode === "interest" ? selected.length > 0 : mode === "location" ? !!anchor : true;
+  const ready =
+    mode === "interest" ? selected.length > 0 : mode === "location" ? !!effectiveAnchor : true;
 
   const submit = useCallback(async () => {
     setSubmitting(true);
@@ -161,7 +167,8 @@ export function PlanWizard({
         budget_band: budget,
         origin,
         travel_month: month,
-        anchor: mode === "location" ? anchor?.slug : null,
+        district,
+        anchor: mode === "location" ? effectiveAnchor?.slug : null,
         radius_km: mode === "location" ? radius : null,
       });
       router.push(`/itinerary/${accepted.request_id}`);
@@ -170,7 +177,24 @@ export function PlanWizard({
       else setSubmitError(error instanceof Error ? error.message : "Something went wrong.");
       setSubmitting(false);
     }
-  }, [mode, selected, days, party, budget, origin, month, anchor, radius, router]);
+    // EVERY value read above belongs here. `district` was missing, so this
+    // callback captured the district the page loaded with and kept sending it: the
+    // user picked Mysuru, the UI showed Mysuru selected, and the request said
+    // Chikkamagaluru. A stale closure is invisible in the types and in the DOM —
+    // the only visible symptom was the wrong itinerary at the end.
+  }, [
+    mode,
+    selected,
+    days,
+    party,
+    budget,
+    origin,
+    month,
+    district,
+    effectiveAnchor,
+    radius,
+    router,
+  ]);
 
   const copy = COPY[mode];
 
@@ -206,7 +230,7 @@ export function PlanWizard({
           {mode === "location" && (
             <AnchorChoice
               anchors={anchors}
-              anchor={anchor}
+              anchor={effectiveAnchor}
               query={query}
               radius={radius}
               onQuery={setQuery}
@@ -232,6 +256,10 @@ export function PlanWizard({
               }}
               onWiden={(km) => {
                 setRadius(km);
+                setInfeasible(null);
+              }}
+              onShorten={(value) => {
+                setDays(value);
                 setInfeasible(null);
               }}
             />
@@ -290,10 +318,10 @@ export function PlanWizard({
                 ))}
               </Select>
             </Row>
-            {mode === "location" && anchor && (
+            {mode === "location" && effectiveAnchor && (
               <Row label="Around">
                 <span className="max-w-[9.5rem] truncate text-right font-mono text-[12px] text-gold">
-                  {anchor.label} · {radius} km
+                  {effectiveAnchor.label} · {radius} km
                 </span>
               </Row>
             )}
@@ -696,12 +724,14 @@ function NoMatches({
   onPickInterest,
   onRaiseBudget,
   onWiden,
+  onShorten,
 }: {
   detail: Infeasible;
   onPickMonth: (month: number) => void;
   onPickInterest: (slug: string) => void;
   onRaiseBudget: (band: number) => void;
   onWiden: (km: number) => void;
+  onShorten: (days: number) => void;
 }) {
   return (
     <div className="mt-7 space-y-4 rounded-2xl border border-rust/35 bg-rust-soft p-5">
@@ -709,6 +739,14 @@ function NoMatches({
         <p className="eyebrow text-rust">Nothing matches that yet</p>
         <p className="text-[13.5px] text-cream/90">{detail.message}</p>
       </div>
+
+      {detail.max_days && (
+        <Suggestions title="Shorten the trip">
+          <Chip onClick={() => onShorten(detail.max_days ?? 1)}>
+            {detail.max_days} {detail.max_days === 1 ? "day" : "days"}
+          </Chip>
+        </Suggestions>
+      )}
 
       {detail.suggested_radius_km && (
         <Suggestions title="Widen the search">

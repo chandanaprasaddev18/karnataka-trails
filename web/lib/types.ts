@@ -197,6 +197,7 @@ export interface Infeasible {
     | "budget_too_low"
     | "nothing_tagged"
     | "nothing_in_radius"
+    | "not_enough_for_days"
     | "no_data";
   asked_month: number;
   suggested_months: number[];
@@ -204,6 +205,8 @@ export interface Infeasible {
   min_budget_band: number | null;
   /** Location mode: a wider radius that would find something. */
   suggested_radius_km: number | null;
+  /** The longest trip this district's places can fill, one stop per day. */
+  max_days: number | null;
 }
 
 /** A district card on the home page. */

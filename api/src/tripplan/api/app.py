@@ -360,6 +360,14 @@ async def create_plan(
     # cannot plan around coordinates we have never heard of.
     anchor = None
     district_slug = payload.district
+    # Interest and district modes must NAME the district. Defaulting it server-side
+    # turns a client that forgot to send it into a plan for the wrong place — which
+    # is exactly what happened — so the request is refused instead.
+    if payload.mode != "location" and not district_slug:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="name the district to plan; see /api/districts for the ones we hold",
+        )
     if payload.mode == "location":
         if not payload.anchor:
             raise HTTPException(
@@ -373,6 +381,10 @@ async def create_plan(
                 detail=f"we do not have a place called '{payload.anchor}'",
             )
         anchor, district_slug = resolved
+
+    # Guaranteed by the two branches above: named by the caller, or derived from the
+    # anchor. The assert documents that for the type checker and for a reader.
+    assert district_slug is not None
 
     try:
         brief = build_brief(
@@ -407,6 +419,7 @@ async def create_plan(
                 "suggested_interests": verdict.suggested_interests,
                 "min_budget_band": verdict.min_budget_band,
                 "suggested_radius_km": verdict.suggested_radius_km,
+                "max_days": verdict.max_days,
             },
         )
 

@@ -220,7 +220,7 @@ function DistrictCard({ district, priority }: { district: District; priority: bo
   const months = district.open_months ?? [];
   return (
     <Link
-      href="/plan/district"
+      href={`/plan/district?district=${district.slug}`}
       className="panel group overflow-hidden transition hover:border-gold/50"
     >
       <div className="relative h-44">

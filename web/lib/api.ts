@@ -106,6 +106,14 @@ export interface PlanInput {
   budget_band: number;
   origin: string;
   travel_month: number | null;
+  /**
+   * Which district to plan. REQUIRED, not optional with a default: the wizard
+   * collected this and simply did not send it, so every "plan by district" request
+   * fell back to the server's default and planned Chikkamagaluru whichever card
+   * the user clicked. Making it required means the compiler catches the omission.
+   * Ignored by the server in location mode, which derives it from the anchor.
+   */
+  district: string;
   /** Location mode: the slug of an anchor from `fetchAnchors`. */
   anchor?: string | null;
   radius_km?: number | null;

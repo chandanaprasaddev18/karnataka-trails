@@ -133,8 +133,8 @@ web-install: ## Install frontend deps
 web-dev: ## Run the Next.js dev server on :3000
 	cd web && npm run dev
 
-web-check: ## Type-check the frontend
-	cd web && npx next typegen && npx tsc --noEmit
+web-check: ## Type-check and lint the frontend
+	cd web && npx next typegen && npx eslint components app lib && npx tsc --noEmit
 
 web-build: ## Production build of the frontend
 	cd web && npm run build

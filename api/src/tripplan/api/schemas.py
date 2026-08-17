@@ -64,7 +64,11 @@ class PlanRequestIn(BaseModel):
     party_size: int = Field(ge=1, le=30)
     budget_band: int = Field(ge=1, le=5)
     origin: str = "Bengaluru"
-    district: str = "chikkamagaluru"
+    # No default. A default here is what hid a client bug for a whole release: the
+    # wizard collected the district and never sent it, so every "plan by district"
+    # request silently planned Chikkamagaluru and looked entirely successful.
+    # Location mode leaves this null and the district is derived from the anchor.
+    district: str | None = None
     travel_month: int | None = Field(default=None, ge=1, le=12)
     # Location mode: the slug of a POI or region from /api/anchors. A slug rather
     # than raw coordinates, so the anchor is always something we actually hold —

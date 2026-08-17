@@ -487,6 +487,7 @@ class Feasibility(BaseModel):
         "budget_too_low",
         "nothing_tagged",
         "nothing_in_radius",
+        "not_enough_for_days",
         "no_data",
     ] = "ok"
     candidates: int = 0
@@ -494,6 +495,7 @@ class Feasibility(BaseModel):
     # can show it back. A plain field rather than a private attribute: this is
     # part of the payload the API returns.
     asked_month: int = 1
+    asked_days: int = 1
     # Months in which the REQUESTED interests do have candidates.
     suggested_months: list[int] = Field(default_factory=list)
     # Interests that do have candidates in the REQUESTED month.
@@ -503,6 +505,9 @@ class Feasibility(BaseModel):
     # Location mode: a wider radius that would find something, when the chosen one
     # found nothing.
     suggested_radius_km: int | None = None
+    # The longest trip the candidates can actually fill, one stop per day minimum.
+    # Set when a brief asks for more days than there are places to put in them.
+    max_days: int | None = None
 
     def explain(self) -> str:
         """A message written for the person who asked, not for the logs."""
@@ -521,6 +526,16 @@ class Feasibility(BaseModel):
             return (
                 "Everything that matches is above your budget. The cheapest option "
                 f"for this month sits at band {self.min_budget_band} of 5."
+            )
+        if self.reason == "not_enough_for_days":
+            # Phrased to avoid "a 8-day trip": the count is a variable, so the
+            # sentence must not depend on which article it needs.
+            return (
+                f"We hold {self.candidates} "
+                f"place{'' if self.candidates == 1 else 's'} that match here, so "
+                f"{self.asked_days} days would leave some of them empty. "
+                f"{self.max_days} day{'' if self.max_days == 1 else 's'} is the most "
+                "this district can fill."
             )
         if self.reason == "nothing_in_radius":
             return (
@@ -614,12 +629,23 @@ async def feasibility(conn: DbConn, brief: TripBrief) -> Feasibility:
     )
     assert row is not None
 
+    # "Enough to plan" means at least one stop per day, not merely one stop.
+    # Without the day count in this check, a five-place district accepted a
+    # six-day brief and the job failed 30 seconds later with a validation error
+    # about empty days — a true statement about the data, delivered in the least
+    # useful possible place.
+    matched = int(row["exact"])
     result = Feasibility(
-        ok=int(row["exact"]) > 0,
-        candidates=int(row["exact"]),
+        ok=matched >= brief.days,
+        candidates=matched,
         asked_month=brief.travel_month,
+        asked_days=brief.days,
     )
     if result.ok:
+        return result
+    if matched > 0:
+        result.reason = "not_enough_for_days"
+        result.max_days = matched
         return result
 
     # Attribute the failure to a single cause, cheapest fix first.

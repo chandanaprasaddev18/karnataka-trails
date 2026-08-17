@@ -82,6 +82,14 @@ covered by a test in `api/tests/test_engine.py`.
   peak monsoon is a safety question, so an out-of-season POI is removed rather
   than down-ranked. What used to be wrong was the *failure mode*, not the filter:
   see `store/pois.py::feasibility`.
+- **"Enough to plan" counts DAYS, not just candidates.** One stop per day minimum,
+  so a five-place district refuses an eight-day brief immediately and offers the
+  longest trip that fits. Without the day count the brief was accepted and the job
+  failed half a minute later complaining about empty days.
+- **The greedy composer shares the pool across remaining days** instead of filling
+  each day to its time budget. Front-loading was invisible while one district had
+  forty places; with five it put all of them on day 1 and produced two fatal empty
+  days.
 - **Feasibility is checked at POST time, and again in the engine.** The API
   refuses an impossible brief immediately with alternatives; the engine keeps its
   own guard for data that changes between accept and run. Both use the same
@@ -272,6 +280,12 @@ one that silently does nothing.
   could not read it, so the request was stored under an identity the client never
   learned and "my requests" came back empty. The client now also mints its own
   token when it has none, so the feature does not depend on that header at all.
+- **`make web-check` runs ESLint with `react-hooks/exhaustive-deps` as an ERROR.**
+  It is there because a missing dependency shipped a wrong feature: the plan
+  wizard's submit callback omitted `district` from its deps, so it captured the
+  value the page loaded with. The user picked Mysuru, the card showed as selected,
+  the request said Chikkamagaluru — invisible to TypeScript, invisible in the DOM,
+  and only detectable by reading the resulting itinerary.
 - **A grid child needs `min-w-0`.** Grid items default to `min-width: auto`, so
   the widest unbreakable descendant sets the column width and pushes the page
   past the viewport. This produced a 9px horizontal overflow on the itinerary at

@@ -8,6 +8,7 @@ connection pool is used.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from uuid import UUID
 
 import asyncpg
 import httpx
@@ -57,6 +58,9 @@ _VALID_BODY = {
     "party_size": 2,
     "budget_band": 3,
     "origin": "Bengaluru",
+    # Named, because the API no longer defaults it — a default is what let the
+    # frontend omit it and plan the wrong district for a whole release.
+    "district": DISTRICT,
     "travel_month": 11,
 }
 
@@ -110,6 +114,62 @@ async def test_interest_photos_are_real_places_and_never_shared(
             row["photo_caption"],
         )
         assert published == 1, f"{row['slug']} names a place we do not publish"
+
+
+@pytest.mark.integration
+async def test_the_district_asked_for_is_the_district_planned(
+    client: httpx.AsyncClient,
+    seeded: asyncpg.Connection,
+) -> None:
+    """The third instance of one failure shape, so it gets a guard.
+
+    A field the UI collects and the request omits produces a wrong itinerary that
+    looks completely successful. It happened with `travel_month` (fixed in migration
+    003), with the location `anchor` (guarded in test_modes.py), and then with
+    `district`: the wizard tracked the choice and never sent it, so clicking Mysuru
+    planned Chikkamagaluru — and every screen agreed with itself.
+
+    Two assertions, because there are two ways to get this wrong:
+      1. a named district must be the one planned
+      2. NO district must be refused, not defaulted — the default is what hid it
+    """
+    # A second district, loaded here rather than in the shared fixture so the other
+    # API tests stay fast. Any imported district will do.
+    other = "mysuru"
+    cfg = get_settings()
+    await load_pois(seeded, cfg.seeds_dir, other)
+    await publish(seeded, min_confidence=2)
+
+    body = {
+        "mode": "district",
+        "interests": [],
+        "days": 2,
+        "party_size": 2,
+        "budget_band": 5,
+        "district": other,
+        "travel_month": 12,
+    }
+    accepted = await client.post("/api/plan", json=body)
+    assert accepted.status_code == 202, accepted.text
+    request_id = accepted.json()["request_id"]
+
+    planned = await seeded.fetchval(
+        """
+        SELECT r.slug FROM trip_requests tr
+        JOIN regions r ON r.id = tr.region_id
+        WHERE tr.id = $1
+        """,
+        UUID(request_id),
+    )
+    assert planned == other, (
+        f"asked for {other!r} and the request was stored against {planned!r}"
+    )
+
+    # And an omitted district is a 422, not a quiet fallback.
+    stripped = {k: v for k, v in body.items() if k != "district"}
+    without = await client.post("/api/plan", json=stripped)
+    assert without.status_code == 422
+    assert "district" in without.text
 
 
 @pytest.mark.integration

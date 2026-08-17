@@ -344,3 +344,32 @@ def test_the_composer_measures_between_real_places() -> None:
         "the anchor must be one of the cluster's real places, not their average"
     )
     assert (anchor.lat, anchor.lon) == (13.1, 75.1), "expected the member nearest the centroid"
+
+
+@pytest.mark.integration
+async def test_more_days_than_places_is_refused_up_front(seeded: asyncpg.Connection) -> None:
+    """A district with five places cannot fill an eight-day trip, and must say so now.
+
+    Before this check the brief was accepted and the JOB failed half a minute later
+    with a validation error about empty days — a true statement about the data,
+    delivered where nobody can act on it. The refusal carries the longest trip that
+    does fit, so the wizard can offer it in one click.
+    """
+    cfg = get_settings()
+    await load_pois(seeded, cfg.seeds_dir, "mysuru")
+    await publish(seeded, min_confidence=2)
+
+    brief = _brief(mode="district", district_slug="mysuru", days=8)
+    verdict = await poi_store.feasibility(seeded, brief)
+
+    assert not verdict.ok
+    assert verdict.reason == "not_enough_for_days"
+    assert verdict.max_days is not None and 0 < verdict.max_days < 8
+    assert "empty" in verdict.explain()
+
+    # And the same district over a trip it CAN fill is fine.
+    assert (
+        await poi_store.feasibility(
+            seeded, _brief(mode="district", district_slug="mysuru", days=verdict.max_days)
+        )
+    ).ok

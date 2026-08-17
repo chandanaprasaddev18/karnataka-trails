@@ -35,7 +35,11 @@ export default async function HomePage() {
         </p>
       )}
 
-      <Hero photo={firstPhoto(districts[0]?.media) ?? gallery[0]} />
+      <Hero
+        photo={firstPhoto(districts[0]?.media) ?? gallery[0]}
+        districts={districts.length}
+        places={districts.reduce((sum, d) => sum + d.published_places, 0)}
+      />
       <Modes />
       <Getaways districts={districts} />
       <Inspiration interests={interests} />
@@ -45,7 +49,15 @@ export default async function HomePage() {
   );
 }
 
-function Hero({ photo }: { photo: Photo | undefined | null }) {
+function Hero({
+  photo,
+  districts,
+  places,
+}: {
+  photo: Photo | undefined | null;
+  districts: number;
+  places: number;
+}) {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-line">
       <div className="relative h-[300px] sm:h-[360px]">
@@ -71,7 +83,11 @@ function Hero({ photo }: { photo: Photo | undefined | null }) {
         />
 
         <div className="relative flex h-full flex-col justify-center gap-4 p-6 sm:p-10">
-          <p className="eyebrow text-gold">Chikkamagaluru · coffee country</p>
+          {/* Counts, not a district name: the hero named Chikkamagaluru while six
+              districts were live behind it. */}
+          <p className="eyebrow text-gold">
+            {districts} districts · {places} places &amp; activities
+          </p>
           <h1 className="max-w-2xl font-display text-[34px] leading-[1.05] font-bold sm:text-[46px]">
             Tell us what you are chasing.
             <br />
@@ -193,7 +209,7 @@ function Getaways({ districts }: { districts: District[] }) {
         {districts.map((district, index) => (
           <DistrictCard key={district.slug} district={district} priority={index === 0} />
         ))}
-        <PendingDistrictCard />
+        <PendingDistrictCard live={districts.length} />
       </div>
     </section>
   );
@@ -259,20 +275,22 @@ function DistrictCard({ district, priority }: { district: District; priority: bo
 /**
  * The honest counterpart to the reference's five-card carousel.
  *
- * A dashed empty slot says "more districts need seed data" instead of listing
- * Coorg, Gokarna and Hampi as if we could plan them. Whoever seeds the next
- * district makes this card disappear.
+ * Karnataka has 31 districts; six are seeded. This card says which fraction is
+ * real, and it counts rather than lists — an earlier version named "Coorg,
+ * Gokarna, Hampi" as the missing ones and was made wrong by the very next import,
+ * which added all three.
  */
-function PendingDistrictCard() {
+function PendingDistrictCard({ live }: { live: number }) {
+  const total = 31;
   return (
     <div className="panel flex flex-col justify-center gap-2 border-dashed p-5">
       <p className="eyebrow text-muted-dim">Not yet</p>
       <p className="font-display text-[15px] font-semibold text-muted">
-        Coorg, Gokarna, Hampi and the rest
+        {total - live} more districts
       </p>
       <p className="text-[12px] leading-relaxed text-muted-dim">
-        Each district needs its places, stays and seasons compiled and fact-checked before
-        it can be planned. The engine is ready for them; the data is not.
+        Each one needs its places geocoded and fact-checked before it can be planned. The
+        engine handles any number; the data is the work.
       </p>
     </div>
   );

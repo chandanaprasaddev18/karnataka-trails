@@ -29,6 +29,7 @@ make plan        # generate an itinerary on the CLI
 | `api/` | FastAPI app, itinerary engine, worker, CLI (one image, two entrypoints) |
 | `api/migrations/` | Forward-only, checksummed SQL migrations |
 | `api/seeds/` | Curated YAML seed data + loader input |
+| `api/tools/` | One-shot importers. `import_directory.py` turns a district/place spreadsheet into seed YAML with geocoded coordinates |
 | `web/` | Next.js frontend |
 | `web/public/photos/` | Downloaded photographs — generated, gitignored |
 | `docs/architecture.md` | The design plan this build follows |
@@ -62,7 +63,14 @@ labelled as such. That ratio is the point: the gaps are honest.
 
 ## Current status
 
-**Phase 1** — Plan by Interest, Chikkamagaluru, card output, no auth. Done.
+**Data** — six districts seeded: Chikkamagaluru hand-compiled (60 POIs: places,
+stays, activities, guides), plus Bengaluru Urban, Mysuru, Uttara Kannada,
+Vijayanagara (Hampi) and Kodagu imported from a tourism spreadsheet with
+coordinates geocoded against OpenStreetMap. The imported districts have places
+only — no stays — which itineraries there report rather than paper over. See
+"Seed data" in `CLAUDE.md` before trusting an imported row.
+
+**Phase 1** — Plan by Interest, card output, no auth. Done.
 
 **Phase 2** — Plan by Location (radius around any place or town we hold) and Plan
 by District (the whole district, interests optional). Done, front to back. All

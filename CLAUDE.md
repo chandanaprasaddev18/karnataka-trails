@@ -14,8 +14,9 @@ guides where available, and a return leg.
 **Where it is now:** all three planning modes work; driving is measured on the real
 road network (OSRM) and drawn from the returned geometry; bookings exist as
 **requests** and the marketplace exists **without sellers** — see the section on
-what those two deliberately do not do. One district is seeded (Chikkamagaluru), and
-there are no accounts, so "my requests" is scoped to a browser session.
+what those two deliberately do not do. Six districts are seeded (66 places and
+activities), and there are no accounts, so "my requests" is scoped to a browser
+session.
 
 ## Domain model — use these words
 
@@ -111,12 +112,50 @@ covered by a test in `api/tests/test_engine.py`.
   the runner refuse to start — that is deliberate.
 - Integration tests self-skip when Postgres is down; `make test-unit` never needs
   Docker.
+- **Never upsert a row whose id comes from a smallint sequence.** `INSERT ... ON
+  CONFLICT DO UPDATE` evaluates `nextval()` before it detects the conflict, so a
+  re-seed burns an id per row even when nothing changes. `interest_tags.id` is a
+  smallint (2 bytes, because `trip_requests.tag_ids` snapshots it), the tests
+  re-seed the taxonomy for every test, and the sequence hit its 32767 ceiling on a
+  table with 30 rows. Fixed in migration 008 plus an update-then-insert loader.
 - **Stop the worker before running the integration suite.** The tests share the
   dev database, so a running worker claims the jobs they enqueue and the queue
   tests fail with a genuine-looking SKIP LOCKED assertion. The failure is the
   environment, not the code.
 - New POI rows require `source` and `data_confidence`. Guides must not carry
   invented names or contact details — a test enforces this.
+
+## Seed data: two provenances, and they are not equivalent
+
+**Chikkamagaluru is hand-compiled.** Someone typed every coordinate, duration and
+fee, and can be asked why. Confidence 2-3.
+
+**The other five districts were imported** from a tourism spreadsheet by
+`api/tools/import_directory.py`, with coordinates geocoded against OpenStreetMap.
+Read that file's docstring before touching them. What matters here:
+
+- **Confidence is capped at 2** and `verified_at` stays NULL, so every itinerary
+  containing them raises `unverified_data`. Only a person checking a place earns 3.
+- **Every row cites the OSM object it matched** (`source_url`) and records that
+  object's display name in `place_details.notes`. Check the notes line first — it is
+  how a wrong match is spotted. One is already visible: Jog Falls' OSM match says
+  *Shimoga district* while the spreadsheet files it under Uttara Kannada.
+- **`api/seeds/geocode_aliases.yaml` is data, not config.** A tourism name and a map
+  name differ ("Dandeli Wildlife Sanctuary" is the town Dandeli plus the Kali Tiger
+  Reserve), and three aliases are outright corrections: without them the geocoder
+  returned a HIGHWAY for Jog Falls, the High Court for Bengaluru Palace, and a
+  Mysuru neighbourhood for Vijayanagara district. Each alias records where it landed
+  when reviewed, and the importer warns if it drifts.
+- **A place that cannot be placed is skipped and named**, never given an approximate
+  coordinate. Lalbagh Botanical Garden is the current casualty: OSM has no object
+  for the garden, only a metro station 600 m away.
+- `api/tests/test_imported_places.py` is the standing version of the checks that
+  caught those errors — inside Karnataka, citation present, confidence capped, no
+  two places within 50 m, district centroid agreeing with its own places.
+
+Imported districts have **places only**: no stays, no activities, no guides. That is
+reported by `make seed` per district and shows up on itineraries as
+`no_stay_available`, which is the honest outcome rather than an invented homestay.
 
 ## Photographs
 
@@ -142,14 +181,33 @@ through Next's image optimiser, and a page load should not depend on a free
 external service. `web/public/photos/` is generated and gitignored — repopulate
 with `make fetch-photos`.
 
-Coverage today: **22 of 29 published places** carry photographs (three each, 60
-in total), plus 8 regions — 76 files, 26 MB. Stays and activities have none by
+Coverage today: **46 of 53 published places** carry photographs, plus 14 regions. Stays and activities have none by
 design and borrow their locality's, labelled as the area. The remaining gaps are
 places nobody has photographed on Commons; the UI renders a generated gradient
 rather than a stand-in image.
 
-Two matching rules were added after a place with dozens of Commons photographs
-came back empty:
+Adding five districts broke four things in this fetcher, all of them the
+single-district era showing through:
+
+- **The district was hardcoded.** The region branch searched
+  `region_name="Chikkamagaluru Karnataka"` for every district, so five of six
+  searched under the wrong name — and the contradiction check then rejected a
+  correct photo of Hampi for "being in Hampi, not here".
+- **The contradiction list is now district-aware** (`_DISTRICT_LOCALITIES`). Hampi,
+  Mysore, Coorg and Gokarna were on the "somewhere else" list; four of them are
+  now places we hold.
+- **A category check was needed.** "Vijayanagara Empire c.1485.png" — a historical
+  map — became a district hero image: the title filter looks for the word "map" and
+  that title has none. Files are now rejected by their Commons CATEGORIES.
+  Note `cllimit=max`: the limit is shared across all titles in one request, so a
+  small value silently returns categories for the first few files and none for the
+  rest, which is exactly how the map slipped through the first fix.
+- **`name_tokens` needed three-letter words.** "Jog Falls" had no distinctive token
+  at all ("jog" is three characters, "falls" is a stopword), making one of the
+  state's best-known waterfalls unmatchable.
+
+Two matching rules were added earlier, after a place with dozens of Commons
+photographs came back empty:
 
 - **Search both `"<name> <region>"` and the bare `"<name>"`, and union the
   results.** The context-qualified query alone returned district gazetteer PDFs

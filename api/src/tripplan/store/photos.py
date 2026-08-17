@@ -70,17 +70,47 @@ _REJECT_TITLE = re.compile(
     r"\b(map|locator|logo|coat of arms|flag|seal|signature|diagram|chart|graph|"
     r"portrait|stamp|coin|banknote|plaque|signboard|milestone|numeral|numerals|"
     r"glyph|script|alphabet|letter|letters|font|gazetteer|census|report|manuscript|"
-    r"inscription text|title page|cover)\b",
+    r"inscription text|title page|cover|"
+    # Historical depictions: an empire's extent in 1485 is a map, and a title
+    # carrying "c.1485" is a drawing or a plan rather than a photograph.
+    r"empire|kingdom|dynasty|c\.\d{3,4})\b",
     re.IGNORECASE,
 )
 
 _EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+
+# Commons category fragments that mean "this is not a photograph of the place".
+# Checked against the file's own categories, which is the signal the title lacks.
+_REJECT_CATEGORIES = re.compile(
+    r"\b(maps?|cartograph|atlas|diagrams?|charts?|coats? of arms|flags?|logos?|"
+    r"engravings?|lithographs?|drawings?|paintings?|illustrations?|"
+    r"scanned images|old books|texts?|manuscripts?)\b",
+    re.IGNORECASE,
+)
 
 # Place names that CONTRADICT this district. Karnataka shares waterfall and hill
 # names with its neighbours, so a title can name our place and still be somewhere
 # else entirely: "Kalhatty Falls ooty.jpg" is a Tamil Nadu waterfall that happens
 # to share a name with the one near Kemmangundi. If a title mentions one of these
 # and our own place does not, the candidate is rejected.
+# Localities that belong to a district we now hold. A title naming one of these is
+# not evidence the photo is somewhere else — it is evidence it is exactly where we
+# think. Without this, "Panorama of Elephant Stables, Hampi.jpg" was rejected for
+# being "in hampi, not here" while fetching for Vijayanagara district, which
+# contains Hampi.
+_DISTRICT_LOCALITIES: dict[str, set[str]] = {
+    "vijayanagara": {"hampi", "hosapete", "hospet", "kamalapur", "anegundi"},
+    "kodagu": {"coorg", "kodagu", "madikeri", "kushalnagar", "virajpet", "somwarpet"},
+    "mysuru": {"mysore", "mysuru", "srirangapatna", "nanjangud"},
+    "uttara-kannada": {
+        "gokarna", "karwar", "murudeshwar", "murdeshwar", "sirsi", "honnavar",
+        "dandeli", "yana", "kumta", "ankola",
+    },
+    "bengaluru-urban": {"bangalore", "bengaluru"},
+    "chikkamagaluru": {"chikmagalur", "chikkamagaluru", "kadur", "tarikere", "sringeri"},
+}
+
+
 _CONTRADICTING_PLACES = {
     "ooty",
     "udhagamandalam",
@@ -251,14 +281,25 @@ def name_tokens(name: str) -> set[str]:
     words are dropped so a match has to be on something that actually identifies
     the place.
     """
-    words = re.findall(r"[A-Za-z]{4,}", name.lower())
+    # Three letters, not four. "Jog Falls" is one of the best-known places in the
+    # state and was unmatchable: "jog" is three characters, "falls" is a stopword,
+    # so the name had no distinctive token at all and fell back to its district.
+    # Short noise words ("the", "and", "of") are already in _STOPWORDS.
+    words = re.findall(r"[A-Za-z]{3,}", name.lower())
     return {w for w in words if w not in _STOPWORDS}
 
 
-def _contradicts(title: str, own_text: str) -> str | None:
-    """Return the name of a place that puts this file somewhere else, if any."""
+def _contradicts(title: str, own_text: str, district_slug: str = "") -> str | None:
+    """Return the name of a place that puts this file somewhere else, if any.
+
+    `district_slug` widens what counts as "here": Hampi is inside Vijayanagara
+    district, so a file titled "…, Hampi.jpg" is confirming the location rather
+    than contradicting it. Without that, adding a district silently rejected its
+    own best photographs.
+    """
     words: set[str] = set(re.findall(r"[a-z]+", title.lower()))
     mine: set[str] = set(re.findall(r"[a-z]+", own_text.lower()))
+    mine |= _DISTRICT_LOCALITIES.get(district_slug, set())
     for clash in sorted(words & _CONTRADICTING_PLACES):
         if clash not in mine:
             return clash
@@ -336,6 +377,20 @@ def _save(target: Path, payload: bytes) -> None:
     target.write_bytes(payload)
 
 
+def _rejected_by_category(page: dict[str, Any]) -> bool:
+    """True when a file's own Commons categories mark it as not a photograph.
+
+    Added after "Vijayanagara Empire c.1485.png" — a historical map — became a
+    district's hero image. Its title contains none of the words the title filter
+    looks for; its categories say "Old maps of India" immediately.
+    """
+    for category in page.get("categories") or []:
+        title = str(category.get("title", ""))
+        if _REJECT_CATEGORIES.search(title.removeprefix("Category:")):
+            return True
+    return False
+
+
 class CommonsClient:
     """Thin read-only Commons client. Sequential and rate-limited by design."""
 
@@ -369,9 +424,19 @@ class CommonsClient:
             params={
                 "action": "query",
                 "format": "json",
-                "prop": "imageinfo",
+                "prop": "imageinfo|categories",
                 "iiprop": "url|size|extmetadata",
                 "iiurlwidth": "1200",
+                # Categories are the reliable way to spot a map or a diagram: a
+                # title filter cannot, because "Vijayanagara Empire c.1485.png" is
+                # a historical MAP containing none of the words such a filter looks
+                # for.
+                #
+                # `max`, not a number: cllimit is shared across ALL titles in the
+                # request, so a small value silently returns categories for the
+                # first few files and none for the rest. With 50 the map's own page
+                # came back with an empty category list and sailed through.
+                "cllimit": "max",
                 "titles": "|".join(titles),
             },
         )
@@ -388,6 +453,7 @@ class CommonsClient:
         region_name: str = "",
         already_used: set[str] | None = None,
         want: int = 1,
+        district_slug: str = "",
     ) -> tuple[list[Photo], str | None]:
         """Find up to `want` attributable photos that provably depict `name`.
 
@@ -433,10 +499,13 @@ class CommonsClient:
             if _REJECT_TITLE.search(title):
                 reason = "candidates were maps/diagrams"
                 continue
+            if _rejected_by_category(info.get(title, {})):
+                reason = "candidates were maps/diagrams"
+                continue
             if already_used is not None and title in already_used:
                 # One photograph should not stand in for two different stops.
                 continue
-            clash = _contradicts(title, f"{name} {region_name}")
+            clash = _contradicts(title, f"{name} {region_name}", district_slug)
             if clash is not None:
                 reason = f"best candidate was in {clash}, not here"
                 continue
@@ -503,21 +572,33 @@ async def fetch_photos(
             """
             SELECT id, name, kind FROM regions
             WHERE (slug = $1 OR path LIKE (SELECT path FROM regions WHERE slug = $1) || '%')
-              AND kind IN ('district', 'taluk')
+              -- Localities too: Hampi is a locality holding every place in its
+              -- district, and the itinerary uses a region's photo as the fallback
+              -- for stops that have none of their own.
+              AND kind IN ('district', 'taluk', 'locality')
               AND ($2 OR media = '[]'::jsonb)
             ORDER BY kind DESC, name
             """,
             district,
             overwrite,
         )
+        # The district actually being fetched, for the search context and the
+        # contradiction check. This was hardcoded to "Chikkamagaluru Karnataka",
+        # which was harmless while there was one district and wrong the moment
+        # there were six: every new district searched under the old one's name, and
+        # a correct photo of Hampi was rejected for "being in Hampi, not here".
+        district_name = str(
+            await conn.fetchval("SELECT name FROM regions WHERE slug = $1", district) or district
+        )
         for row in regions:
             photos, why = await commons.best_photo(
                 client,
                 str(row["name"]),
-                "Karnataka landscape",
-                region_name="Chikkamagaluru Karnataka",
+                f"{district_name} Karnataka landscape",
+                region_name=f"{district_name} Karnataka",
                 already_used=used_titles,
                 want=2,
+                district_slug=district,
             )
             label = f"{row['name']} ({row['kind']})"
             if not photos:
@@ -575,7 +656,8 @@ async def fetch_photos(
                 client,
                 str(row["name"]),
                 f"{row['region_name']} Karnataka",
-                region_name=f"{row['region_name']} Chikkamagaluru Karnataka",
+                region_name=f"{row['region_name']} {district_name} Karnataka",
+                district_slug=district,
                 already_used=used_titles,
                 want=3,
             )

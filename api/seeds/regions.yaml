@@ -56,3 +56,47 @@
           name: Kalasa
           kind: taluk
           centroid: [13.2333, 75.3667]
+
+    # --- districts imported from the tourism directory spreadsheet ------------
+    #
+    # Centroids geocoded against OpenStreetMap by `api/tools/import_directory.py`;
+    # every one was checked against the median position of its own places, which is
+    # how a wrong match gets caught (plain "Vijayanagara" resolves to a Mysuru
+    # neighbourhood 200 km from Hampi).
+    #
+    # NO TALUKS. The spreadsheet gives district and place, nothing between, and
+    # inventing an intermediate level would be inventing data. The consequence is
+    # visible and acceptable: the itinerary composer clusters by region, so a trip
+    # in one of these districts treats it as a single cluster and simply picks
+    # different places each day. Chikkamagaluru keeps its taluks and its tighter
+    # day-by-day grouping — the difference is the data, not the engine.
+    - slug: bengaluru-urban
+      name: Bengaluru Urban
+      kind: district
+      centroid: [12.97881, 77.59958]
+    - slug: mysuru
+      name: Mysuru
+      kind: district
+      centroid: [12.30415, 76.65295]
+    - slug: uttara-kannada
+      name: Uttara Kannada
+      kind: district
+      centroid: [14.88333, 74.58333]
+    - slug: vijayanagara
+      name: Vijayanagara
+      kind: district
+      centroid: [14.94286, 76.0448]
+      children:
+        # The one locality worth naming here, for two reasons. The famous name is
+        # Hampi, not Vijayanagara, so a traveller searching "hampi" found nothing;
+        # and all five of the district's places sit inside it, so the composer can
+        # group a day properly instead of treating the whole district as one cluster.
+        # OSM place/village, geocoded.
+        - slug: hampi
+          name: Hampi
+          kind: locality
+          centroid: [15.3358, 76.46102]
+    - slug: kodagu
+      name: Kodagu
+      kind: district
+      centroid: [12.25192, 75.74121]

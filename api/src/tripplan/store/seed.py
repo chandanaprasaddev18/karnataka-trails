@@ -94,18 +94,24 @@ async def load_interest_tags(conn: DbConn, seeds_dir: Path) -> int:
     if duplicates:
         raise SeedError(f"{path.name}: duplicate slugs {sorted(duplicates)}")
 
+    # Update-then-insert, NOT upsert. `INSERT ... ON CONFLICT DO UPDATE` evaluates
+    # the id default before it detects the conflict, so every re-seed of an existing
+    # tag consumed a sequence value and threw it away. `interest_tags.id` is a
+    # smallint (see migration 008), the integration tests re-seed for every test,
+    # and the sequence eventually hit its 32767 ceiling on a table with 30 rows —
+    # seeding then failed outright. Doing the update first means an unchanged
+    # vocabulary costs no ids at all.
     async with conn.transaction():
         for tag in tags:
-            await conn.execute(
+            updated = await conn.execute(
                 """
-                INSERT INTO interest_tags (slug, label, kind, description, display_order)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (slug) DO UPDATE SET
-                    label         = EXCLUDED.label,
-                    kind          = EXCLUDED.kind,
-                    description   = EXCLUDED.description,
-                    display_order = EXCLUDED.display_order,
+                UPDATE interest_tags SET
+                    label         = $2,
+                    kind          = $3,
+                    description   = $4,
+                    display_order = $5,
                     is_active     = true
+                WHERE slug = $1
                 """,
                 tag.slug,
                 tag.label,
@@ -113,6 +119,18 @@ async def load_interest_tags(conn: DbConn, seeds_dir: Path) -> int:
                 tag.description,
                 tag.display_order,
             )
+            if updated.endswith("0"):
+                await conn.execute(
+                    """
+                    INSERT INTO interest_tags (slug, label, kind, description, display_order)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    tag.slug,
+                    tag.label,
+                    tag.kind,
+                    tag.description,
+                    tag.display_order,
+                )
 
     log.info("seed.interest_tags", count=len(tags))
     return len(tags)
@@ -319,6 +337,11 @@ class SeedReport(BaseModel):
     untagged: list[str] = Field(default_factory=list)
     missing_duration: list[str] = Field(default_factory=list)
     missing_cost_band: list[str] = Field(default_factory=list)
+    # Whole kinds this district has no file for. Reported loudly because the
+    # consequence is a product one: no stays.yaml means every itinerary here has
+    # nowhere to sleep, and that should not be discovered from a warning on a
+    # generated trip.
+    absent_kinds: list[str] = Field(default_factory=list)
 
     def render(self) -> str:
         lines = [
@@ -329,6 +352,17 @@ class SeedReport(BaseModel):
         def block(title: str, items: list[str]) -> None:
             if items:
                 lines.append(f"  {title} ({len(items)}): {', '.join(sorted(items))}")
+
+        if self.absent_kinds:
+            consequence = {
+                "stay": "itineraries here will have nowhere to sleep",
+                "activity": "no guided or bookable activities to offer",
+                "place": "nothing to visit — this district cannot be planned",
+            }
+            for kind in sorted(self.absent_kinds):
+                lines.append(
+                    f"  NO {kind}s.yaml — {consequence.get(kind, 'nothing loaded for this kind')}"
+                )
 
         block("synthetic placeholders — never publish these", self.placeholders)
         block("confidence <= 2 — verify before publishing", self.low_confidence)
@@ -360,7 +394,18 @@ async def load_pois(conn: DbConn, seeds_dir: Path, district: str) -> SeedReport:
 
     async with conn.transaction():
         for kind, filename in _POI_FILES:
-            rows = [PoiSeed.model_validate(r) for r in _read_yaml_list(district_dir / filename)]
+            path = district_dir / filename
+            # An absent file is a gap in the data, not a crash: the imported
+            # districts have places and nothing else. `places.yaml` is still
+            # required — a district with nothing to visit is not a district we can
+            # plan — and every absence is named in the report.
+            if not path.exists():
+                if kind == "place":
+                    raise SeedError(f"{district}: places.yaml is required ({path})")
+                report.absent_kinds.append(kind)
+                report.by_kind[kind] = 0
+                continue
+            rows = [PoiSeed.model_validate(r) for r in _read_yaml_list(path)]
             report.by_kind[kind] = len(rows)
 
             for poi in rows:
@@ -746,8 +791,15 @@ async def load_vendors(conn: DbConn, seeds_dir: Path, district: str) -> int:
 
 
 async def load_guides(conn: DbConn, seeds_dir: Path, district: str) -> int:
-    """Load guides and their POI links. Returns the number of guides written."""
+    """Load guides and their POI links. Returns the number of guides written.
+
+    A district with no guides file is normal, not an error: the imported districts
+    have places and nothing else, and refusing to seed them over a missing optional
+    file would make the whole import fail on its least important part.
+    """
     path = seeds_dir / district / "guides.yaml"
+    if not path.exists():
+        return 0
     guides = [GuideSeed.model_validate(r) for r in _read_yaml_list(path)]
 
     tags = await _tag_ids(conn)

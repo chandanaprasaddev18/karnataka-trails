@@ -125,20 +125,42 @@ def seed_taxonomy() -> None:
 
 
 @app.command("seed-pois")
-def seed_pois(district: str = DEFAULT_DISTRICT) -> None:
-    """Load POIs, guides, vendors and specialities for a district, as status='draft'."""
+def seed_pois(district: str = "all") -> None:
+    """Load POIs, guides, vendors and specialities, as status='draft'.
+
+    `--district all` (the default) loads every district that has a seed directory,
+    which is what you want after an import. Naming one loads just that one.
+    """
 
     async def _run() -> None:
         cfg = get_settings()
+        districts = (
+            sorted(
+                p.name
+                for p in cfg.seeds_dir.iterdir()
+                if p.is_dir() and (p / "places.yaml").exists()
+            )
+            if district == "all"
+            else [district]
+        )
+        if not districts:
+            typer.secho(f"no seed directories under {cfg.seeds_dir}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
         async with connect(cfg) as conn:
-            report = await load_pois(conn, cfg.seeds_dir, district)
-            guides = await load_guides(conn, cfg.seeds_dir, district)
-            vendors = await load_vendors(conn, cfg.seeds_dir, district)
-            # Specialities are not gated (no seller, no price) — see the loader.
-            specialities = await load_specialities(conn, cfg.seeds_dir, district)
-        typer.echo(report.render())
-        typer.echo(f"loaded {guides} guide(s), {vendors} vendor(s)")
-        typer.echo(f"loaded {specialities} district speciality/ies (published on load)")
+            for slug in districts:
+                typer.secho(f"\n--- {slug}", fg=typer.colors.CYAN)
+                report = await load_pois(conn, cfg.seeds_dir, slug)
+                guides = await load_guides(conn, cfg.seeds_dir, slug)
+                vendors = await load_vendors(conn, cfg.seeds_dir, slug)
+                # Specialities are not gated (no seller, no price) — see the loader.
+                specialities = await load_specialities(conn, cfg.seeds_dir, slug)
+                typer.echo(report.render())
+                if guides or vendors or specialities:
+                    typer.echo(
+                        f"loaded {guides} guide(s), {vendors} vendor(s), "
+                        f"{specialities} speciality/ies"
+                    )
         typer.echo(
             "\nAll rows are status='draft' and invisible to the engine. "
             "Fact-check, then run 'make publish'."
@@ -283,7 +305,7 @@ def worker(
 
 @app.command("fetch-photos")
 def fetch_photos_cmd(
-    district: str = DEFAULT_DISTRICT,
+    district: str = "all",
     overwrite: bool = typer.Option(
         False, "--overwrite", help="Re-fetch records that already have a photo."
     ),
@@ -299,15 +321,36 @@ def fetch_photos_cmd(
     async def _run() -> None:
         cfg = get_settings()
         async with connect(cfg) as conn:
-            report = await fetch_photos(
-                conn,
-                district=district,
-                photos_dir=cfg.photos.dir,
-                public_prefix=cfg.photos.public_prefix,
-                overwrite=overwrite,
-                limit=limit,
+            # Every district with published content, unless one is named. The
+            # fetcher was written when there was only one district and silently
+            # covered just that one after five more were imported.
+            districts = (
+                [
+                    str(r["slug"])
+                    for r in await conn.fetch(
+                        """
+                        SELECT DISTINCT d.slug FROM regions d
+                        JOIN regions r ON r.path LIKE d.path || '%'
+                        JOIN pois p ON p.region_id = r.id AND p.status = 'published'
+                        WHERE d.kind = 'district'
+                        ORDER BY d.slug
+                        """
+                    )
+                ]
+                if district == "all"
+                else [district]
             )
-        typer.echo(report.render())
+            for slug in districts:
+                typer.secho(f"\n--- {slug}", fg=typer.colors.CYAN)
+                report = await fetch_photos(
+                    conn,
+                    district=slug,
+                    photos_dir=cfg.photos.dir,
+                    public_prefix=cfg.photos.public_prefix,
+                    overwrite=overwrite,
+                    limit=limit,
+                )
+                typer.echo(report.render())
 
     asyncio.run(_run())
 

@@ -1,0 +1,111 @@
+# Search hints for the importer's geocoder.
+#
+# ------------------------------------------------------------------------
+# WHY THIS FILE EXISTS
+#
+# A spreadsheet says "Dandeli Wildlife Sanctuary"; OpenStreetMap knows the town
+# "Dandeli" and the protected area "Kali Tiger Reserve". A tourism name and a map
+# name are different things, and the gap is data, not logic — so it lives here in
+# a file a human reviews, not in `import_directory.py`.
+#
+# Each entry is the name AS THE SOURCE SPELLS IT, mapped to the query that finds
+# the right object, plus what that query resolved to when it was added. If a
+# future OSM edit moves the answer, the `expect` line is what catches it: the
+# importer warns when a match lands more than `expect_within_km` away.
+#
+# EVERY ALIAS HERE WAS CHECKED BY EYE against the returned object's name, category
+# and position. An alias is a claim about which map object is the place — the same
+# kind of claim as a coordinate, and it gets the same scrutiny.
+# ------------------------------------------------------------------------
+
+- source_name: Lalbagh Botanical Garden
+  query: Lalbagh Botanical Garden, Bengaluru
+  # OSM tags the garden itself; plain "Lalbagh" returns unrelated administrative
+  # boundaries in Madhya Pradesh, which the Karnataka bounding box rejects.
+  note: Garden polygon in central Bengaluru.
+  expect: [12.9507, 77.5848]
+  expect_within_km: 3
+
+- source_name: Sri Chamarajendra Zoological Gardens
+  query: Mysore Zoo
+  note: >-
+    The zoo's formal name is the source's; OSM's primary name is the common one.
+    Resolved to tourism/zoo "Sri Chamarajendra Zoological Gardens".
+  expect: [12.3006, 76.6683]
+  expect_within_km: 2
+
+- source_name: Murudeshwar Temple & Statue
+  query: Murudeshwara Temple
+  note: Spelling differs by one letter; resolved to amenity/place_of_worship.
+  expect: [14.0935, 74.4848]
+  expect_within_km: 2
+
+- source_name: Dandeli Wildlife Sanctuary
+  query: Dandeli
+  note: >-
+    No OSM object by this name. The sanctuary is now the Kali Tiger Reserve, whose
+    boundary centroid is 30 km from where visitors actually go; rafting and the
+    lodges are at Dandeli town, so the town is the honest target. The `notes` line
+    on the generated row says which object matched.
+  expect: [15.2490, 74.6236]
+  expect_within_km: 3
+
+- source_name: Vijaya Vittala Temple & Stone Chariot
+  query: Vittala Temple Hampi
+  note: OSM spells it "Vijaya Vitthala Temple"; the stone chariot is inside it.
+  expect: [15.3423, 76.4755]
+  expect_within_km: 2
+
+- source_name: Raja's Seat
+  query: Raja Seat Madikeri
+  note: >-
+    Apostrophe and the missing town made this unfindable. Resolved to the
+    leisure/park in Madikeri.
+  expect: [12.4142, 75.7370]
+  expect_within_km: 2
+
+- source_name: Jog Falls
+  query: Jog Falls Shivamogga
+  note: >-
+    NOT an alias of convenience — a correction. Without the district the geocoder
+    returned "Sirsi - Jog Falls Highway", a road 32 km from the waterfall. This
+    resolves to waterway/waterfall "Jog Falls".
+  expect: [14.2293, 74.8123]
+  expect_within_km: 2
+
+- source_name: Bengaluru Palace
+  query: Bangalore Palace
+  note: >-
+    Also a correction. "Bengaluru Palace" matched the High Court of Karnataka
+    (Attara Kacheri), 1.5 km away and a different building entirely. The palace is
+    tagged under its older spelling.
+  expect: [12.9986, 77.5920]
+  expect_within_km: 2
+
+# --- districts ---------------------------------------------------------------
+
+- source_name: Vijayanagara
+  query: Vijayanagara district Karnataka
+  note: >-
+    A correction, and the worst near-miss found: plain "Vijayanagara" returns a
+    NEIGHBOURHOOD OF MYSURU, 200 km from Hampi and comfortably inside the
+    Karnataka bounding box, so no sanity check would have caught it. Resolved to
+    boundary/administrative.
+  expect: [14.9429, 76.0448]
+  expect_within_km: 40
+
+- source_name: ISKCON Temple Bangalore
+  query: Hare Krishna Hill Bengaluru
+  note: >-
+    OSM has no object for the temple itself; "ISKCON Temple" is a BUS STOP and
+    "ISKCON Bangalore" is the kitchen and a pond. The temple stands on Hare Krishna
+    Hill, which the source's own description says, and that hill is mapped as
+    natural/peak about 150 m from the shrine.
+  expect: [13.0097, 77.5514]
+  expect_within_km: 2
+
+# Deliberately NOT aliased: Lalbagh Botanical Garden.
+# OSM returns nothing for the garden under any spelling tried, and the only
+# "Lalbagh" in Bengaluru is the metro station 600 m from the garden's centre — the
+# wrong object. It is left in the importer's "could not place" list rather than
+# given an approximate coordinate. Add it by hand with a checked position.
